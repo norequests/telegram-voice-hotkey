@@ -237,7 +237,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     } else {
                         self.showSetup()
                     }
-                } else if state == .waitingForPhone {
+                } else if state == .waitingForPhone || state == .closed {
                     log("📱 TDLib needs authentication — showing setup")
                     self.showSetup()
                 }
@@ -247,6 +247,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             log("❌ TDLib error: \(msg)")
         }
         telegramClient?.start()
+
+        // Fallback: if no auth state received within 5 seconds, show setup
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) { [weak self] in
+            guard let self = self else { return }
+            if !self.config.userLoggedIn && self.setupWindow == nil {
+                log("⏰ TDLib auto-recovery timeout — showing setup")
+                self.showSetup()
+            }
+        }
     }
 
     func startTelegramClient() {
