@@ -3,7 +3,7 @@ import AVFoundation
 import Carbon.HIToolbox
 import ServiceManagement
 
-class AppDelegate: NSObject, NSApplicationDelegate {
+class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     var statusItem: NSStatusItem!
     var recorder: AVAudioRecorder?
     var tempURL: URL?
@@ -43,6 +43,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func buildMenu() {
         let menu = NSMenu()
+        menu.delegate = self
+        statusItem.menu = menu
+    }
+
+    // Rebuild menu contents every time it opens — always fresh status
+    func menuWillOpen(_ menu: NSMenu) {
+        menu.removeAllItems()
         menu.addItem(NSMenuItem(title: "Telegram Voice Hotkey", action: nil, keyEquivalent: ""))
         menu.addItem(NSMenuItem.separator())
 
@@ -57,6 +64,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
             let tapStatus = eventTap != nil ? "✅ Hotkey: Active" : "❌ Hotkey: Inactive"
             menu.addItem(NSMenuItem(title: tapStatus, action: nil, keyEquivalent: ""))
+
+            if !AXIsProcessTrusted() || eventTap == nil {
+                let retryItem = NSMenuItem(title: "Retry Permissions", action: #selector(retryPermissions), keyEquivalent: "r")
+                retryItem.target = self
+                menu.addItem(retryItem)
+            }
         } else {
             menu.addItem(NSMenuItem(title: "Not configured", action: nil, keyEquivalent: ""))
         }
@@ -64,7 +77,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(NSMenuItem.separator())
         menu.addItem(NSMenuItem(title: "Settings...", action: #selector(showSetup), keyEquivalent: ","))
         menu.addItem(NSMenuItem(title: "Quit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
-        statusItem.menu = menu
+    }
+
+    @objc func retryPermissions() {
+        if let oldTap = eventTap {
+            CGEvent.tapEnable(tap: oldTap, enable: false)
+            eventTap = nil
+        }
+        tryStartListening()
     }
 
     // MARK: - Accessibility
