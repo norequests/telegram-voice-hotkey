@@ -521,9 +521,20 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             return
         }
 
-        // Transcribe voice locally, then send screenshot with caption
-        log("📝 Transcribing voice locally...")
-        WhisperTranscriber.transcribe(audioPath: audioURL.path) { [weak self] transcript in
+        // Transcribe voice, then send screenshot with caption
+        let transcribe: (@escaping (String?) -> Void) -> Void
+        if config.transcriptionMode == "gemini" && !config.geminiApiKey.isEmpty {
+            log("📝 Transcribing via Gemini...")
+            transcribe = { completion in
+                GeminiTranscriber.transcribe(audioPath: audioURL.path, apiKey: self.config.geminiApiKey, completion: completion)
+            }
+        } else {
+            log("📝 Transcribing locally via whisper...")
+            transcribe = { completion in
+                WhisperTranscriber.transcribe(audioPath: audioURL.path, completion: completion)
+            }
+        }
+        transcribe { [weak self] transcript in
             guard let self = self else { return }
 
             let caption = transcript ?? "[voice note attached]"

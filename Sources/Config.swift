@@ -19,12 +19,16 @@ struct Config: Codable {
     var screenshotHotkeyKeyCode: UInt16
     var screenshotHotkeyModifiers: UInt
     var screenshotHotkeyDisplay: String
+    // Transcription
+    var transcriptionMode: String  // "local" or "gemini"
+    var geminiApiKey: String
 
     init(chatId: String, hotkeyKeyCode: UInt16, hotkeyModifiers: UInt,
          hotkeyDisplay: String, recordingMode: RecordingMode, launchAtLogin: Bool,
          apiId: Int, apiHash: String, userLoggedIn: Bool,
          screenshotHotkeyKeyCode: UInt16 = 0, screenshotHotkeyModifiers: UInt = 0,
-         screenshotHotkeyDisplay: String = "") {
+         screenshotHotkeyDisplay: String = "",
+         transcriptionMode: String = "local", geminiApiKey: String = "") {
         self.chatId = chatId; self.hotkeyKeyCode = hotkeyKeyCode
         self.hotkeyModifiers = hotkeyModifiers; self.hotkeyDisplay = hotkeyDisplay
         self.recordingMode = recordingMode; self.launchAtLogin = launchAtLogin
@@ -32,12 +36,15 @@ struct Config: Codable {
         self.screenshotHotkeyKeyCode = screenshotHotkeyKeyCode
         self.screenshotHotkeyModifiers = screenshotHotkeyModifiers
         self.screenshotHotkeyDisplay = screenshotHotkeyDisplay
+        self.transcriptionMode = transcriptionMode
+        self.geminiApiKey = geminiApiKey
     }
 
     enum CodingKeys: String, CodingKey {
         case chatId, hotkeyKeyCode, hotkeyModifiers, hotkeyDisplay
         case recordingMode, launchAtLogin, apiId, apiHash, userLoggedIn
         case screenshotHotkeyKeyCode, screenshotHotkeyModifiers, screenshotHotkeyDisplay
+        case transcriptionMode, geminiApiKey
         // Legacy keys we skip on read
         case botToken, sendMode
     }
@@ -56,6 +63,8 @@ struct Config: Codable {
         screenshotHotkeyKeyCode = try c.decodeIfPresent(UInt16.self, forKey: .screenshotHotkeyKeyCode) ?? 0
         screenshotHotkeyModifiers = try c.decodeIfPresent(UInt.self, forKey: .screenshotHotkeyModifiers) ?? 0
         screenshotHotkeyDisplay = try c.decodeIfPresent(String.self, forKey: .screenshotHotkeyDisplay) ?? ""
+        transcriptionMode = try c.decodeIfPresent(String.self, forKey: .transcriptionMode) ?? "local"
+        geminiApiKey = try c.decodeIfPresent(String.self, forKey: .geminiApiKey) ?? ""
     }
 
     func encode(to encoder: Encoder) throws {
@@ -72,6 +81,8 @@ struct Config: Codable {
         try c.encode(screenshotHotkeyKeyCode, forKey: .screenshotHotkeyKeyCode)
         try c.encode(screenshotHotkeyModifiers, forKey: .screenshotHotkeyModifiers)
         try c.encode(screenshotHotkeyDisplay, forKey: .screenshotHotkeyDisplay)
+        try c.encode(transcriptionMode, forKey: .transcriptionMode)
+        try c.encode(geminiApiKey, forKey: .geminiApiKey)
     }
 
     static let configURL: URL = {

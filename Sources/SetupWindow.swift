@@ -9,6 +9,9 @@ class SetupWindowController: NSWindowController, NSWindowDelegate {
     private let hotkeyField = HotkeyRecorderView(frame: .zero)
     private let screenshotHotkeyField = HotkeyRecorderView(frame: .zero)
     private let modePopup = NSPopUpButton()
+    private let transcriptionPopup = NSPopUpButton()
+    private let geminiKeyField = NSTextField()
+    private var geminiLabel: NSTextField?
     private let launchAtLoginCheck = NSButton(checkboxWithTitle: "Launch at login", target: nil, action: nil)
     private var loginRowY: Int = 0
 
@@ -25,7 +28,7 @@ class SetupWindowController: NSWindowController, NSWindowDelegate {
 
     convenience init(existing: Config, existingClient: TelegramClient? = nil, onComplete: @escaping (Config) -> Void) {
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 520, height: 500),
+            contentRect: NSRect(x: 0, y: 0, width: 520, height: 570),
             styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false
@@ -56,7 +59,7 @@ class SetupWindowController: NSWindowController, NSWindowDelegate {
         contentView = NSView(frame: window.contentView!.bounds)
         contentView.autoresizingMask = [.width, .height]
 
-        var y = 465
+        var y = 535
 
         // ── Telegram API Credentials ──
         let credHeader = makeLabel("Telegram API", bold: true, size: 14)
@@ -219,6 +222,39 @@ class SetupWindowController: NSWindowController, NSWindowDelegate {
         contentView.addSubview(modePopup)
         y -= 30
 
+        // ── Transcription ──
+        let transcriptionLabel = makeLabel("Transcription:")
+        transcriptionLabel.frame = NSRect(x: 20, y: y, width: 90, height: 20)
+        contentView.addSubview(transcriptionLabel)
+
+        transcriptionPopup.frame = NSRect(x: 115, y: y - 2, width: 385, height: 24)
+        transcriptionPopup.addItems(withTitles: [
+            "Local (whisper.cpp — offline, ~10s)",
+            "Gemini (cloud — fast, needs API key)"
+        ])
+        transcriptionPopup.selectItem(at: existing.transcriptionMode == "gemini" ? 1 : 0)
+        transcriptionPopup.target = self
+        transcriptionPopup.action = #selector(transcriptionModeChanged)
+        contentView.addSubview(transcriptionPopup)
+        y -= 30
+
+        let geminiLabel_ = makeLabel("Gemini Key:")
+        self.geminiLabel = geminiLabel_
+        let geminiLabel = geminiLabel_
+        geminiLabel.frame = NSRect(x: 20, y: y, width: 90, height: 20)
+        contentView.addSubview(geminiLabel)
+
+        geminiKeyField.frame = NSRect(x: 115, y: y - 2, width: 385, height: 24)
+        geminiKeyField.placeholderString = "AIza..."
+        geminiKeyField.stringValue = existing.geminiApiKey
+        geminiKeyField.font = .monospacedSystemFont(ofSize: 12, weight: .regular)
+        geminiKeyField.usesSingleLineMode = true
+        geminiKeyField.cell?.isScrollable = true
+        geminiKeyField.isHidden = existing.transcriptionMode != "gemini"
+        contentView.addSubview(geminiKeyField)
+        geminiLabel.isHidden = existing.transcriptionMode != "gemini"
+        y -= 30
+
         launchAtLoginCheck.frame = NSRect(x: 115, y: y, width: 380, height: 20)
         launchAtLoginCheck.state = existing.launchAtLogin ? .on : .off
         contentView.addSubview(launchAtLoginCheck)
@@ -231,6 +267,12 @@ class SetupWindowController: NSWindowController, NSWindowDelegate {
         contentView.addSubview(saveButton)
 
         window.contentView = contentView
+    }
+
+    @objc func transcriptionModeChanged() {
+        let isGemini = transcriptionPopup.indexOfSelectedItem == 1
+        geminiKeyField.isHidden = !isGemini
+        geminiLabel?.isHidden = !isGemini
     }
 
     @objc func startReauth() {
@@ -453,7 +495,9 @@ class SetupWindowController: NSWindowController, NSWindowDelegate {
             userLoggedIn: loggedIn,
             screenshotHotkeyKeyCode: screenshotHotkeyField.recordedHotkey?.keyCode ?? 0,
             screenshotHotkeyModifiers: screenshotHotkeyField.recordedHotkey?.modifiers ?? 0,
-            screenshotHotkeyDisplay: screenshotHotkeyField.recordedHotkey?.displayString ?? ""
+            screenshotHotkeyDisplay: screenshotHotkeyField.recordedHotkey?.displayString ?? "",
+            transcriptionMode: transcriptionPopup.indexOfSelectedItem == 1 ? "gemini" : "local",
+            geminiApiKey: geminiKeyField.stringValue.trimmingCharacters(in: .whitespaces)
         )
         config.save()
         onComplete?(config)

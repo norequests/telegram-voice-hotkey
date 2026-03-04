@@ -1,43 +1,55 @@
 # Voice to Slop
 
-A macOS menu bar app that lets you send Telegram voice notes to your Openclaw with a global keyboard shortcut.
+A macOS menu bar app for sending voice notes and screenshots to your AI agent via Telegram.
 
-Hold a hotkey → record → release → voice note sent as **you** via Telegram's User API.
+**Hold a hotkey → record → release → voice note sent as you** via Telegram's User API (TDLib).
+
+**Hold screenshot hotkey → captures screen + records voice → transcribes locally → sends screenshot with your words as the caption** — one atomic message, full context for your AI.
 
 > **Prerequisites:** You need an [OpenClaw](https://github.com/openclaw/openclaw) agent connected to Telegram that can receive and transcribe voice notes. See [Setup step 3](#3-set-up-your-ai-to-receive-voice-notes) for details.
+
+## Features
+
+- 🎤 **Global voice hotkey** — works from any app, any time
+- 📸 **Screenshot + voice combo** — capture screen + speak, sent as one message
+- 🧠 **Local transcription** — whisper.cpp transcribes your voice on-device (no cloud needed)
+- 👤 **Sends as you** — Telegram User API (TDLib), messages appear from your account
+- 🎵 **OGG/Opus format** — proper Telegram voice note with waveform player
+- 📦 **Self-contained** — TDLib, ffmpeg bundled in the `.app`
+- 🚀 **Launch at login** — optional auto-start
+- 📊 **Menu bar status** — live recording state, connection status, hotkey info
 
 ## Install
 
 ### Option 1: Download ZIP (easiest)
 
 1. Download the latest `.zip` from [**Releases**](https://github.com/norequests/voice-to-slop/releases)
-2. Unzip it
-3. Drag `VoiceToSlop.app` to `/Applications/`
-4. Open it — if macOS blocks it, go to **System Settings → Privacy & Security** and click "Open Anyway"
+2. Unzip and drag `VoiceToSlop.app` to `/Applications/`
+3. If macOS blocks it: **System Settings → Privacy & Security → Open Anyway**
 
-> **Note:** The app is not notarized. macOS may say it's "damaged." Fix with:
+> **Note:** The app is not notarized. If macOS says it's "damaged":
 > ```bash
 > sudo xattr -cr /Applications/VoiceToSlop.app
 > ```
-> Or right-click → Open the first time.
 
 ### Option 2: Build from source
 
 ```bash
-# Install dependencies
-brew install cmake gperf openssl ffmpeg
+brew install cmake gperf openssl ffmpeg whisper-cpp
 
-# Clone and build
 git clone https://github.com/norequests/voice-to-slop.git
 cd voice-to-slop
 
 # Build TDLib (first time only, ~5 minutes)
 ./scripts/setup-tdlib.sh
 
-# Build the app
-./build.sh
+# Download whisper model for local transcription
+mkdir -p ~/Library/Application\ Support/TelegramVoiceHotkey/models/
+curl -L "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.en.bin" \
+  -o ~/Library/Application\ Support/TelegramVoiceHotkey/models/ggml-small.en.bin
 
-# Install
+# Build and install
+./build.sh
 sudo rm -rf /Applications/VoiceToSlop.app
 cp -r VoiceToSlop.app /Applications/
 ```
@@ -50,82 +62,102 @@ On first launch, a setup window appears.
 
 ### 1. Get Telegram API credentials
 
-1. Go to [my.telegram.org](https://my.telegram.org)
-2. Log in with your phone number
-3. Click **API Development Tools**
-4. Create an app (any name/description)
-5. Copy your **API ID** and **API Hash**
+1. Go to [my.telegram.org](https://my.telegram.org) → **API Development Tools**
+2. Create an app → copy your **API ID** and **API Hash**
 
 ### 2. Configure the app
 
-- **API ID** — paste from step above
-- **API Hash** — paste from step above
-- **Phone** — your Telegram phone number (e.g. `+12125551234`)
-- Click **Send Code** → enter the 5-digit code from Telegram
-- **Chat ID** — the chat to send voice notes to (numeric ID)
-- **Hotkey** — click the field and press your desired key combo
-- **Mode** — hold-to-record (release sends) or press-to-toggle
+| Field | Description |
+|-------|-------------|
+| **API ID / Hash** | From step 1 |
+| **Phone** | Your Telegram phone number → click **Send Code** → enter code |
+| **Chat ID** | Numeric ID of the chat to send to (see [Finding a Chat ID](#finding-a-chat-id)) |
+| **Hotkey** | Global shortcut for voice recording |
+| **Screenshot** | Global shortcut for screenshot + voice combo |
+| **Mode** | Hold-to-record (release sends) or press-to-toggle |
 
 ### 3. Set up your AI to receive voice notes
 
-For the full loop — send voice → AI responds — your [OpenClaw](https://github.com/openclaw/openclaw) agent needs to handle inbound audio:
+For the full loop — speak → AI responds:
 
-1. **Connect OpenClaw to Telegram** — set up the [Telegram channel](https://docs.openclaw.ai) so your agent receives messages from your bot
-2. **Transcribe with Gemini** — OpenClaw doesn't natively transcribe audio. Use a script that sends the `.ogg` file to Google Gemini's API for transcription, then your agent (Claude, etc.) handles the response
+1. **Connect [OpenClaw](https://github.com/openclaw/openclaw) to Telegram** via the [Telegram channel plugin](https://docs.openclaw.ai)
+2. **Configure audio transcription** — OpenClaw supports auto-transcription via Gemini, OpenAI Whisper API, Groq, Deepgram, or local whisper
 
-The result: hold your hotkey → speak → AI receives the transcription and replies in chat.
+The result: hold hotkey → speak → AI transcribes → responds in chat.
 
-### 4. Grant permissions
+### 4. Permissions
 
-The app needs two macOS permissions:
+The app needs three macOS permissions (prompted automatically):
 
-- **Microphone** — prompts automatically on first recording
-- **Accessibility** — required for the global hotkey. Grant in:
-  **System Settings → Privacy & Security → Accessibility**
+- **Microphone** — for recording
+- **Accessibility** — for global hotkey (System Settings → Privacy & Security → Accessibility)
+- **Screen Recording** — for screenshot feature (prompted on first screenshot)
 
-The app detects when permission is granted (no restart needed).
+## Screenshot + Voice Combo
 
-## How to find a Chat ID
+The killer feature. Hold the screenshot hotkey:
 
-The Chat ID is the numeric ID of the Telegram chat you want to send voice notes to.
+1. 📸 Screen captured instantly
+2. 🎤 Voice recording starts
+3. Release → voice transcribed locally via [whisper.cpp](https://github.com/ggml-org/whisper.cpp)
+4. 📤 Screenshot sent with transcription as caption — **one message**
 
-**Easiest method:** Use [@userinfobot](https://t.me/userinfobot) — forward a message from your target chat, and it'll tell you the ID.
+Your AI gets the full context (visual + verbal) in a single message. No race condition, no partial responses.
 
-**For a bot:** Message the bot, then visit `https://api.telegram.org/bot<TOKEN>/getUpdates` and find `"chat":{"id":123456789}`.
+### Whisper Model
 
-## Features
+Local transcription uses whisper.cpp. Recommended model: **small.en** (~460MB, good accuracy):
 
-- **Global hotkey** — works from any app, any time
-- **Sends as you** — uses Telegram's User API (TDLib), messages appear from your account
-- **OGG/Opus format** — proper Telegram voice note with waveform player
-- **Self-contained** — TDLib and ffmpeg bundled in the `.app`
-- **Launch at login** — optional auto-start
-- **Menu bar status** — live recording state, connection status, hotkey info
+```bash
+mkdir -p ~/Library/Application\ Support/TelegramVoiceHotkey/models/
+curl -L "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.en.bin" \
+  -o ~/Library/Application\ Support/TelegramVoiceHotkey/models/ggml-small.en.bin
+```
+
+`base.en` (~140MB) also works but struggles with background noise. The app searches for `small.en` first, falls back to `base.en`.
+
+## Finding a Chat ID
+
+The Chat ID is the numeric ID of the target Telegram chat.
+
+- **[@userinfobot](https://t.me/userinfobot)** — forward a message from the target chat
+- **For a bot** — message it, then check `https://api.telegram.org/bot<TOKEN>/getUpdates`
 
 ## Files
 
 | Path | Description |
 |------|-------------|
-| `~/Library/Application Support/VoiceToSlop/config.json` | Settings |
-| `~/Library/Application Support/VoiceToSlop/app.log` | App log |
-| `~/Library/Application Support/VoiceToSlop/tdlib/` | Telegram session data |
-| `~/Library/Application Support/VoiceToSlop/tdlib.log` | TDLib internal log |
+| `~/Library/Application Support/TelegramVoiceHotkey/config.json` | Settings |
+| `~/Library/Application Support/TelegramVoiceHotkey/app.log` | App log |
+| `~/Library/Application Support/TelegramVoiceHotkey/tdlib/` | Telegram session |
+| `~/Library/Application Support/TelegramVoiceHotkey/tdlib.log` | TDLib internal log |
+| `~/Library/Application Support/TelegramVoiceHotkey/models/` | Whisper models |
 
-Click the menu bar icon → **View Log...** to check status.
+Menu bar icon → **View Log...** to check status.
 
 ## Troubleshooting
 
 | Problem | Fix |
 |---------|-----|
 | "TDLib not found" | Run `./scripts/setup-tdlib.sh` then rebuild |
-| Hotkey doesn't work | Check Accessibility permission in System Settings |
-| "Chat not found" | Make sure Chat ID is numeric, not a username |
+| Hotkey doesn't work | Grant Accessibility in System Settings |
+| "Chat not found" | Use numeric Chat ID, not username |
 | App won't open | Right-click → Open, or allow in Privacy & Security |
-| Corrupt session | Delete `~/Library/Application Support/VoiceToSlop/tdlib/` and re-login |
+| Bad transcription | Use `small.en` model; speak clearly for 2+ seconds |
+| Corrupt session | Delete `~/Library/Application Support/TelegramVoiceHotkey/tdlib/` and re-login |
+| Screenshot not sending | Grant Screen Recording permission; restart app |
+
+## Architecture
+
+- **Swift/AppKit** — native macOS menu bar app
+- **TDLib** — Telegram User API, loaded dynamically via `dlopen`
+- **whisper.cpp** — local speech-to-text for screenshot captions
+- **ffmpeg** — OGG/Opus encoding for Telegram voice notes
+- **CGEventTap** — global hotkey interception (suppresses events, no beeping)
 
 ## macOS only
 
-This is a native Swift/AppKit app. Windows and Linux are not supported. PRs welcome.
+Native Swift app. Windows and Linux are not supported. PRs welcome.
 
 ## License
 
