@@ -307,7 +307,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     // MARK: - Recording
 
     func startRecording() {
-        guard !isRecording, config.isConfigured else { return }
+        guard !isRecording, config.isConfigured else {
+            print("⚠️ startRecording skipped — isRecording=\(isRecording), configured=\(config.isConfigured)")
+            return
+        }
         isRecording = true
         updateIcon(recording: true)
 
@@ -323,11 +326,19 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         ]
 
         do {
-            recorder = try AVAudioRecorder(url: url, settings: settings)
-            recorder?.record()
-            print("🔴 Recording...")
+            let rec = try AVAudioRecorder(url: url, settings: settings)
+            rec.isMeteringEnabled = true
+            let started = rec.record()
+            if started {
+                recorder = rec
+                print("🔴 Recording to: \(url.path)")
+            } else {
+                print("❌ AVAudioRecorder.record() returned false")
+                isRecording = false
+                updateIcon(recording: false)
+            }
         } catch {
-            print("❌ Record failed: \(error)")
+            print("❌ AVAudioRecorder init failed: \(error)")
             isRecording = false
             updateIcon(recording: false)
         }
@@ -338,21 +349,37 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         isRecording = false
         updateIcon(recording: false)
 
-        recorder?.stop()
+        guard let rec = recorder else {
+            print("⬛ No recorder to stop")
+            return
+        }
+
+        let duration = rec.currentTime
+        rec.stop()
         recorder = nil
-        print("⬛ Stopped")
 
-        guard let url = tempURL else { return }
+        guard let url = tempURL else {
+            print("⬛ No temp URL")
+            return
+        }
 
+        print("⬛ Stopped — duration: \(String(format: "%.1f", duration))s")
+
+        // Check file exists and has content
         do {
             let attrs = try FileManager.default.attributesOfItem(atPath: url.path)
             let size = attrs[.size] as? Int ?? 0
-            if size < 5000 {
-                print("⏭ Too short, discarding")
+            print("📁 File size: \(size) bytes")
+
+            if duration < 0.5 || size < 1000 {
+                print("⏭ Too short (\(String(format: "%.1f", duration))s, \(size)b), discarding")
                 try? FileManager.default.removeItem(at: url)
                 return
             }
-        } catch {}
+        } catch {
+            print("❌ Can't read file: \(error)")
+            return
+        }
 
         sendVoice(fileURL: url) { success in
             try? FileManager.default.removeItem(at: url)
