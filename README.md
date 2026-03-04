@@ -4,6 +4,8 @@ A macOS menu bar app that lets you send Telegram voice notes to your Openclaw wi
 
 Hold a hotkey → record → release → voice note sent as **you** via Telegram's User API.
 
+> **Prerequisites:** You need an [OpenClaw](https://github.com/openclaw/openclaw) agent connected to Telegram that can receive and transcribe voice notes. See [Setup step 3](#3-set-up-your-ai-to-receive-voice-notes) for details.
+
 ## Install
 
 ### Option 1: Download ZIP (easiest)
