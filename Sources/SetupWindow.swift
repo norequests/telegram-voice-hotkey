@@ -11,12 +11,12 @@ class SetupWindowController: NSWindowController, NSWindowDelegate {
 
     convenience init(existing: Config, onComplete: @escaping (Config) -> Void) {
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 420, height: 310),
+            contentRect: NSRect(x: 0, y: 0, width: 420, height: 300),
             styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false
         )
-        window.title = "Telegram Voice Hotkey — Setup"
+        window.title = "Telegram Voice Hotkey"
         window.center()
 
         self.init(window: window)
@@ -26,36 +26,42 @@ class SetupWindowController: NSWindowController, NSWindowDelegate {
         let view = NSView(frame: window.contentView!.bounds)
         view.autoresizingMask = [.width, .height]
 
-        let titleLabel = makeLabel("Configure your Telegram voice hotkey", bold: true)
-        titleLabel.frame = NSRect(x: 20, y: 230, width: 380, height: 24)
-        view.addSubview(titleLabel)
+        var y = 255
 
         // Bot Token
         let tokenLabel = makeLabel("Bot Token:")
-        tokenLabel.frame = NSRect(x: 20, y: 195, width: 100, height: 20)
+        tokenLabel.frame = NSRect(x: 20, y: y, width: 90, height: 20)
         view.addSubview(tokenLabel)
 
-        botTokenField.frame = NSRect(x: 120, y: 193, width: 280, height: 24)
+        botTokenField.frame = NSRect(x: 115, y: y - 2, width: 285, height: 24)
         botTokenField.placeholderString = "123456:ABC-DEF..."
         botTokenField.stringValue = existing.botToken
+        botTokenField.font = .monospacedSystemFont(ofSize: 12, weight: .regular)
+        botTokenField.usesSingleLineMode = true
+        botTokenField.cell?.isScrollable = true
         view.addSubview(botTokenField)
+        y -= 40
 
         // Chat ID
         let chatLabel = makeLabel("Chat ID:")
-        chatLabel.frame = NSRect(x: 20, y: 160, width: 100, height: 20)
+        chatLabel.frame = NSRect(x: 20, y: y, width: 90, height: 20)
         view.addSubview(chatLabel)
 
-        chatIdField.frame = NSRect(x: 120, y: 158, width: 280, height: 24)
+        chatIdField.frame = NSRect(x: 115, y: y - 2, width: 285, height: 24)
         chatIdField.placeholderString = "Your Telegram chat ID"
         chatIdField.stringValue = existing.chatId
+        chatIdField.font = .monospacedSystemFont(ofSize: 12, weight: .regular)
+        chatIdField.usesSingleLineMode = true
+        chatIdField.cell?.isScrollable = true
         view.addSubview(chatIdField)
+        y -= 40
 
         // Hotkey recorder
         let hotkeyLabel = makeLabel("Hotkey:")
-        hotkeyLabel.frame = NSRect(x: 20, y: 125, width: 100, height: 20)
+        hotkeyLabel.frame = NSRect(x: 20, y: y, width: 90, height: 20)
         view.addSubview(hotkeyLabel)
 
-        hotkeyField.frame = NSRect(x: 120, y: 119, width: 200, height: 30)
+        hotkeyField.frame = NSRect(x: 115, y: y - 4, width: 200, height: 28)
         if !existing.hotkeyDisplay.isEmpty {
             hotkeyField.title = existing.hotkeyDisplay
             hotkeyField.recordedHotkey = HotkeyRecorderView.RecordedHotkey(
@@ -65,34 +71,37 @@ class SetupWindowController: NSWindowController, NSWindowDelegate {
             )
         }
         view.addSubview(hotkeyField)
+        y -= 40
 
         // Recording mode
         let modeLabel = makeLabel("Mode:")
-        modeLabel.frame = NSRect(x: 20, y: 90, width: 100, height: 20)
+        modeLabel.frame = NSRect(x: 20, y: y, width: 90, height: 20)
         view.addSubview(modeLabel)
 
-        modePopup.frame = NSRect(x: 120, y: 88, width: 280, height: 24)
+        modePopup.frame = NSRect(x: 115, y: y - 2, width: 285, height: 24)
         modePopup.addItems(withTitles: [
             "Hold to record (release sends)",
-            "Press to start, press any key to stop & send"
+            "Press to start, any key stops"
         ])
         modePopup.selectItem(at: existing.recordingMode == .pressToToggle ? 1 : 0)
         view.addSubview(modePopup)
+        y -= 35
 
         // Launch at login
-        launchAtLoginCheck.frame = NSRect(x: 120, y: 58, width: 280, height: 20)
+        launchAtLoginCheck.frame = NSRect(x: 115, y: y, width: 280, height: 20)
         launchAtLoginCheck.state = existing.launchAtLogin ? .on : .off
         view.addSubview(launchAtLoginCheck)
+        y -= 15
 
         // Help text
         let helpLabel = makeLabel("Click the hotkey button, then press your desired shortcut.", bold: false, size: 11)
         helpLabel.textColor = .secondaryLabelColor
-        helpLabel.frame = NSRect(x: 20, y: 35, width: 380, height: 18)
+        helpLabel.frame = NSRect(x: 20, y: y, width: 380, height: 18)
         view.addSubview(helpLabel)
 
-        // Save button
+        // Save button — anchored at bottom with breathing room
         let saveButton = NSButton(title: "Save & Start", target: self, action: #selector(saveConfig))
-        saveButton.frame = NSRect(x: 290, y: 20, width: 110, height: 32)
+        saveButton.frame = NSRect(x: 280, y: 15, width: 120, height: 36)
         saveButton.bezelStyle = .rounded
         saveButton.keyEquivalent = "\r"
         view.addSubview(saveButton)

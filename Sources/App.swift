@@ -29,6 +29,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         config = Config.load()
         if config.isConfigured {
+            checkAccessibilityPermission()
             startListening()
             print("🎤 Ready — hold \(config.hotkeyDisplay) to record")
         } else {
@@ -49,6 +50,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(NSMenuItem(title: "Settings...", action: #selector(showSetup), keyEquivalent: ","))
         menu.addItem(NSMenuItem(title: "Quit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
         statusItem.menu = menu
+    }
+
+    func checkAccessibilityPermission() {
+        let trusted = AXIsProcessTrustedWithOptions(
+            [kAXTrustedCheckOptionPrompt.takeUnretainedValue(): true] as CFDictionary
+        )
+        if !trusted {
+            print("⚠️ Accessibility permission needed — system prompt shown")
+        }
     }
 
     func ensureEditMenu() {
@@ -76,6 +86,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         setupWindow = SetupWindowController(existing: config) { [weak self] newConfig in
             self?.config = newConfig
             self?.buildMenu()
+            self?.checkAccessibilityPermission()
             self?.startListening()
             self?.updateLaunchAtLogin(newConfig.launchAtLogin)
             NSApp.setActivationPolicy(.accessory)
