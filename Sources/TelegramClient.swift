@@ -274,8 +274,14 @@ class TelegramClient {
 
         case "error":
             let msg = data["message"] as? String ?? "Unknown error"
-            log("❌ TDLib error: \(msg)")
-            DispatchQueue.main.async { self.onError?(msg) }
+            let code = data["code"] as? Int ?? 0
+            // Ignore the "call setTdlibParameters first" error — it's a timing artifact
+            if msg.contains("setTdlibParameters") {
+                log("⚠️ TDLib init timing error (ignored): \(msg)")
+            } else {
+                log("❌ TDLib error (\(code)): \(msg)")
+                DispatchQueue.main.async { self.onError?(msg) }
+            }
 
         default:
             break
