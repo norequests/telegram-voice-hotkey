@@ -108,6 +108,15 @@ Click the menu bar icon → **View Log...** to check status.
 | App won't open | Right-click → Open, or allow in Privacy & Security |
 | Corrupt session | Delete `~/Library/Application Support/TelegramVoiceHotkey/tdlib/` and re-login |
 
+## Receiving voice notes in OpenClaw
+
+For the full loop — send voice → AI responds — your OpenClaw agent needs to handle inbound audio. Here's the recommended setup:
+
+1. **Connect OpenClaw to Telegram** — set up the [Telegram channel](https://docs.openclaw.ai) so your agent receives messages
+2. **Transcribe with Gemini** — OpenClaw doesn't natively transcribe audio. Use a script that sends the audio file to Google Gemini's API for transcription, then let your agent (Claude, etc.) handle the response. See the [OpenClaw docs](https://docs.openclaw.ai) for audio handling examples.
+
+The result: hold your hotkey → speak → your AI assistant receives the transcription and replies in chat.
+
 ## macOS only
 
 This is a native Swift/AppKit app. Windows and Linux are not supported. PRs welcome.
