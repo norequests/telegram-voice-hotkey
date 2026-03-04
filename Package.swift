@@ -2,11 +2,11 @@
 import PackageDescription
 
 let package = Package(
-    name: "TelegramVoiceHotkey",
+    name: "VoiceToSlop",
     platforms: [.macOS(.v13)],
     targets: [
         .executableTarget(
-            name: "TelegramVoiceHotkey",
+            name: "VoiceToSlop",
             path: "Sources",
             exclude: ["CTDLib"]
         ),

@@ -5,20 +5,20 @@ set -e
 echo "🔨 Building..."
 swift build -c release
 
-APP="TelegramVoiceHotkey.app"
+APP="VoiceToSlop.app"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS"
 mkdir -p "$APP/Contents/Resources"
 mkdir -p "$APP/Contents/Resources/lib"
 
-cp .build/release/TelegramVoiceHotkey "$APP/Contents/MacOS/"
+cp .build/release/VoiceToSlop "$APP/Contents/MacOS/"
 
 # Bundle TDLib
 if [ -d "tdlib-local/lib" ] && ls tdlib-local/lib/libtdjson*.dylib 1>/dev/null 2>&1; then
     for f in tdlib-local/lib/libtdjson*.dylib; do
         cp -L "$f" "$APP/Contents/Resources/lib/"
     done
-    install_name_tool -add_rpath "@executable_path/../Resources/lib" "$APP/Contents/MacOS/TelegramVoiceHotkey" 2>/dev/null || true
+    install_name_tool -add_rpath "@executable_path/../Resources/lib" "$APP/Contents/MacOS/VoiceToSlop" 2>/dev/null || true
     echo "📦 Bundled TDLib ($(ls "$APP/Contents/Resources/lib/" | grep tdjson | tr '\n' ' '))"
 else
     echo ""
@@ -62,7 +62,7 @@ cat > "$APP/Contents/Info.plist" << 'EOF'
 <plist version="1.0">
 <dict>
     <key>CFBundleExecutable</key>
-    <string>TelegramVoiceHotkey</string>
+    <string>VoiceToSlop</string>
     <key>CFBundleIdentifier</key>
     <string>com.funktools.voice-to-slop</string>
     <key>CFBundleName</key>
@@ -70,9 +70,9 @@ cat > "$APP/Contents/Info.plist" << 'EOF'
     <key>CFBundleDisplayName</key>
     <string>Voice to Slop</string>
     <key>CFBundleVersion</key>
-    <string>1.0.0</string>
+    <string>1.2.0</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.0.0</string>
+    <string>1.2.0</string>
     <key>CFBundleIconFile</key>
     <string>AppIcon</string>
     <key>CFBundlePackageType</key>
@@ -91,4 +91,4 @@ echo ""
 echo "✅ Built: $APP"
 echo ""
 echo "To install:"
-echo "  cp -r TelegramVoiceHotkey.app /Applications/"
+echo "  sudo rm -rf /Applications/VoiceToSlop.app && cp -r VoiceToSlop.app /Applications/"

@@ -10,14 +10,14 @@ Hold a hotkey → record → release → voice note sent as **you** via Telegram
 
 ### Option 1: Download ZIP (easiest)
 
-1. Download the latest `.zip` from [**Releases**](https://github.com/norequests/telegram-voice-hotkey/releases)
+1. Download the latest `.zip` from [**Releases**](https://github.com/norequests/voice-to-slop/releases)
 2. Unzip it
-3. Drag `TelegramVoiceHotkey.app` to `/Applications/`
+3. Drag `VoiceToSlop.app` to `/Applications/`
 4. Open it — if macOS blocks it, go to **System Settings → Privacy & Security** and click "Open Anyway"
 
 > **Note:** The app is not notarized. macOS may say it's "damaged." Fix with:
 > ```bash
-> sudo xattr -cr /Applications/TelegramVoiceHotkey.app
+> sudo xattr -cr /Applications/VoiceToSlop.app
 > ```
 > Or right-click → Open the first time.
 
@@ -28,8 +28,8 @@ Hold a hotkey → record → release → voice note sent as **you** via Telegram
 brew install cmake gperf openssl ffmpeg
 
 # Clone and build
-git clone https://github.com/norequests/telegram-voice-hotkey.git
-cd telegram-voice-hotkey
+git clone https://github.com/norequests/voice-to-slop.git
+cd voice-to-slop
 
 # Build TDLib (first time only, ~5 minutes)
 ./scripts/setup-tdlib.sh
@@ -38,8 +38,8 @@ cd telegram-voice-hotkey
 ./build.sh
 
 # Install
-sudo rm -rf /Applications/TelegramVoiceHotkey.app
-cp -r TelegramVoiceHotkey.app /Applications/
+sudo rm -rf /Applications/VoiceToSlop.app
+cp -r VoiceToSlop.app /Applications/
 ```
 
 **Requirements:** macOS 13+ (Ventura or later), Xcode Command Line Tools (`xcode-select --install`)
@@ -106,10 +106,10 @@ The Chat ID is the numeric ID of the Telegram chat you want to send voice notes 
 
 | Path | Description |
 |------|-------------|
-| `~/Library/Application Support/TelegramVoiceHotkey/config.json` | Settings |
-| `~/Library/Application Support/TelegramVoiceHotkey/app.log` | App log |
-| `~/Library/Application Support/TelegramVoiceHotkey/tdlib/` | Telegram session data |
-| `~/Library/Application Support/TelegramVoiceHotkey/tdlib.log` | TDLib internal log |
+| `~/Library/Application Support/VoiceToSlop/config.json` | Settings |
+| `~/Library/Application Support/VoiceToSlop/app.log` | App log |
+| `~/Library/Application Support/VoiceToSlop/tdlib/` | Telegram session data |
+| `~/Library/Application Support/VoiceToSlop/tdlib.log` | TDLib internal log |
 
 Click the menu bar icon → **View Log...** to check status.
 
@@ -121,7 +121,7 @@ Click the menu bar icon → **View Log...** to check status.
 | Hotkey doesn't work | Check Accessibility permission in System Settings |
 | "Chat not found" | Make sure Chat ID is numeric, not a username |
 | App won't open | Right-click → Open, or allow in Privacy & Security |
-| Corrupt session | Delete `~/Library/Application Support/TelegramVoiceHotkey/tdlib/` and re-login |
+| Corrupt session | Delete `~/Library/Application Support/VoiceToSlop/tdlib/` and re-login |
 
 ## macOS only
 

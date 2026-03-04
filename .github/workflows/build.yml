@@ -30,80 +30,16 @@ jobs:
           chmod +x scripts/setup-tdlib.sh
           scripts/setup-tdlib.sh
 
-      - name: Build Swift app
-        run: swift build -c release
-
-      - name: Create app bundle
+      - name: Build and bundle
         run: |
-          APP="TelegramVoiceHotkey.app"
-          mkdir -p "$APP/Contents/MacOS"
-          mkdir -p "$APP/Contents/Resources/lib"
-
-          cp .build/release/TelegramVoiceHotkey "$APP/Contents/MacOS/"
-
-          # Bundle TDLib (resolve symlinks)
-          for f in tdlib-local/lib/libtdjson*.dylib; do
-            cp -L "$f" "$APP/Contents/Resources/lib/"
-          done
-          install_name_tool -add_rpath "@executable_path/../Resources/lib" "$APP/Contents/MacOS/TelegramVoiceHotkey" 2>/dev/null || true
-
-          # Bundle ffmpeg
-          cp $(which ffmpeg) "$APP/Contents/Resources/ffmpeg"
-
-          # Generate icon
-          if [ -f Assets/icon.png ]; then
-            ICONSET="$APP/Contents/Resources/AppIcon.iconset"
-            mkdir -p "$ICONSET"
-            sips -z 16 16     Assets/icon.png --out "$ICONSET/icon_16x16.png"
-            sips -z 32 32     Assets/icon.png --out "$ICONSET/icon_16x16@2x.png"
-            sips -z 32 32     Assets/icon.png --out "$ICONSET/icon_32x32.png"
-            sips -z 64 64     Assets/icon.png --out "$ICONSET/icon_32x32@2x.png"
-            sips -z 128 128   Assets/icon.png --out "$ICONSET/icon_128x128.png"
-            sips -z 256 256   Assets/icon.png --out "$ICONSET/icon_128x128@2x.png"
-            sips -z 256 256   Assets/icon.png --out "$ICONSET/icon_256x256.png"
-            sips -z 512 512   Assets/icon.png --out "$ICONSET/icon_256x256@2x.png"
-            sips -z 512 512   Assets/icon.png --out "$ICONSET/icon_512x512.png"
-            sips -z 1024 1024 Assets/icon.png --out "$ICONSET/icon_512x512@2x.png"
-            iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/AppIcon.icns"
-            rm -rf "$ICONSET"
-          fi
-
-          cat > "$APP/Contents/Info.plist" << 'PLIST'
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-            <key>CFBundleExecutable</key>
-            <string>TelegramVoiceHotkey</string>
-            <key>CFBundleIdentifier</key>
-            <string>com.funktools.telegram-voice-hotkey</string>
-            <key>CFBundleName</key>
-            <string>Telegram Voice Hotkey</string>
-            <key>CFBundleDisplayName</key>
-            <string>Telegram Voice Hotkey</string>
-            <key>CFBundleVersion</key>
-            <string>1.0.0</string>
-            <key>CFBundleShortVersionString</key>
-            <string>1.0.0</string>
-            <key>CFBundleIconFile</key>
-            <string>AppIcon</string>
-            <key>CFBundlePackageType</key>
-            <string>APPL</string>
-            <key>LSUIElement</key>
-            <true/>
-            <key>LSMinimumSystemVersion</key>
-            <string>13.0</string>
-            <key>NSMicrophoneUsageDescription</key>
-            <string>Records audio to send as voice messages to Telegram.</string>
-          </dict>
-          </plist>
-          PLIST
+          chmod +x build.sh
+          ./build.sh
 
       - name: Zip app
-        run: zip -r TelegramVoiceHotkey-macOS.zip TelegramVoiceHotkey.app
+        run: zip -r VoiceToSlop-macOS.zip VoiceToSlop.app
 
       - name: Upload Release
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/')
         with:
-          files: TelegramVoiceHotkey-macOS.zip
+          files: VoiceToSlop-macOS.zip
