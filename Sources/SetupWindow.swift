@@ -108,8 +108,19 @@ class SetupWindowController: NSWindowController, NSWindowDelegate {
             loginButton.action = #selector(startReauth)
             contentView.addSubview(loginButton)
 
+            // Pre-position phone/code fields (hidden) so Re-auth can reveal them
+            phoneField.frame = NSRect(x: 115, y: y - 30, width: 200, height: 24)
+            phoneField.placeholderString = "+1234567890"
+            phoneField.font = .monospacedSystemFont(ofSize: 12, weight: .regular)
             phoneField.isHidden = true
+            contentView.addSubview(phoneField)
+
+            codeField.frame = NSRect(x: 115, y: y - 60, width: 200, height: 24)
+            codeField.placeholderString = "12345"
+            codeField.font = .monospacedSystemFont(ofSize: 12, weight: .regular)
             codeField.isHidden = true
+            contentView.addSubview(codeField)
+
             y -= 35
         } else {
             let phoneLabel = makeLabel("Phone:")
