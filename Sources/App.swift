@@ -427,10 +427,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     func convertToOgg(input: URL, output: URL, completion: @escaping (Bool) -> Void) {
-        // Use afconvert (built into macOS) to convert to CAF, then use opusenc if available
-        // Simplest: use ffmpeg if installed, otherwise send m4a as-is
-        let ffmpeg = ["/opt/homebrew/bin/ffmpeg", "/usr/local/bin/ffmpeg"]
-            .first { FileManager.default.fileExists(atPath: $0) }
+        // Look for ffmpeg: bundled in .app first, then system paths
+        let bundled = Bundle.main.resourceURL?.appendingPathComponent("ffmpeg").path
+        let candidates = [bundled, "/opt/homebrew/bin/ffmpeg", "/usr/local/bin/ffmpeg"].compactMap { $0 }
+        let ffmpeg = candidates.first { FileManager.default.isExecutableFile(atPath: $0) }
 
         guard let ffmpegPath = ffmpeg else {
             log("⚠️ ffmpeg not found — sending m4a (install: brew install ffmpeg)")

@@ -64,6 +64,22 @@ cat > "$APP/Contents/Info.plist" << 'EOF'
 </plist>
 EOF
 
+# Bundle ffmpeg for OGG/Opus conversion
+FFMPEG_BIN="$APP/Contents/Resources/ffmpeg"
+if [ ! -f "$FFMPEG_BIN" ]; then
+    # Check for system ffmpeg first
+    SYS_FFMPEG=$(which ffmpeg 2>/dev/null || echo "")
+    if [ -n "$SYS_FFMPEG" ]; then
+        cp "$SYS_FFMPEG" "$FFMPEG_BIN"
+        echo "📦 Bundled ffmpeg from: $SYS_FFMPEG"
+    else
+        echo ""
+        echo "⚠️  ffmpeg not found. Voice notes need ffmpeg for OGG/Opus format."
+        echo "   Install it: brew install ffmpeg"
+        echo "   Then re-run ./build.sh to bundle it."
+    fi
+fi
+
 echo ""
 echo "✅ Built: $APP"
 echo ""
