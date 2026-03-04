@@ -30,7 +30,7 @@ class SetupWindowController: NSWindowController, NSWindowDelegate {
             backing: .buffered,
             defer: false
         )
-        window.title = "Telegram Voice Hotkey"
+        window.title = "Voice to Slop"
         window.center()
 
         self.init(window: window)

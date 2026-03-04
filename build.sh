@@ -64,11 +64,11 @@ cat > "$APP/Contents/Info.plist" << 'EOF'
     <key>CFBundleExecutable</key>
     <string>TelegramVoiceHotkey</string>
     <key>CFBundleIdentifier</key>
-    <string>com.funktools.telegram-voice-hotkey</string>
+    <string>com.funktools.voice-to-slop</string>
     <key>CFBundleName</key>
-    <string>Telegram Voice Hotkey</string>
+    <string>Voice to Slop</string>
     <key>CFBundleDisplayName</key>
-    <string>Telegram Voice Hotkey</string>
+    <string>Voice to Slop</string>
     <key>CFBundleVersion</key>
     <string>1.0.0</string>
     <key>CFBundleShortVersionString</key>

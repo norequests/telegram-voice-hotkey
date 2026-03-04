@@ -79,7 +79,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     func menuWillOpen(_ menu: NSMenu) {
         menu.removeAllItems()
-        menu.addItem(NSMenuItem(title: "Telegram Voice Hotkey", action: nil, keyEquivalent: ""))
+        menu.addItem(NSMenuItem(title: "Voice to Slop", action: nil, keyEquivalent: ""))
         menu.addItem(NSMenuItem.separator())
 
         if config.isConfigured {
@@ -439,7 +439,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     : "🔴 Recording — release to send"
                 button.toolTip = tooltip
             } else {
-                let image = NSImage(systemSymbolName: "mic", accessibilityDescription: "Voice Hotkey")
+                let image = NSImage(systemSymbolName: "mic", accessibilityDescription: "Voice to Slop")
                 image?.isTemplate = true
                 button.image = image
 
@@ -449,7 +449,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                         : "Hold \(self.config.hotkeyDisplay) to record"
                     button.toolTip = tip
                 } else {
-                    button.toolTip = "Telegram Voice Hotkey — not configured"
+                    button.toolTip = "Voice to Slop — not configured"
                 }
             }
         }
