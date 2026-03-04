@@ -21,7 +21,7 @@ let package = Package(
             linkerSettings: [
                 .unsafeFlags([
                     "-L\(tdlibPath)/lib",
-                    "-rpath", "@executable_path/../Resources/lib",
+                    "-Xlinker", "-rpath", "-Xlinker", "@executable_path/../Resources/lib",
                 ]),
                 .linkedLibrary("tdjson"),
             ]
