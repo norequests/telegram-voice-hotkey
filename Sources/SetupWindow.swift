@@ -5,11 +5,11 @@ class SetupWindowController: NSWindowController, NSWindowDelegate {
 
     private let botTokenField = NSTextField()
     private let chatIdField = NSTextField()
-    private let hotkeyPopup = NSPopUpButton()
+    private let hotkeyField = HotkeyRecorderField()
 
     convenience init(existing: Config, onComplete: @escaping (Config) -> Void) {
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 420, height: 260),
+            contentRect: NSRect(x: 0, y: 0, width: 420, height: 280),
             styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false
@@ -25,44 +25,60 @@ class SetupWindowController: NSWindowController, NSWindowDelegate {
         view.autoresizingMask = [.width, .height]
 
         let titleLabel = makeLabel("Configure your Telegram voice hotkey", bold: true)
-        titleLabel.frame = NSRect(x: 20, y: 210, width: 380, height: 24)
+        titleLabel.frame = NSRect(x: 20, y: 230, width: 380, height: 24)
         view.addSubview(titleLabel)
 
+        // Bot Token
         let tokenLabel = makeLabel("Bot Token:")
-        tokenLabel.frame = NSRect(x: 20, y: 175, width: 100, height: 20)
+        tokenLabel.frame = NSRect(x: 20, y: 195, width: 100, height: 20)
         view.addSubview(tokenLabel)
 
-        botTokenField.frame = NSRect(x: 120, y: 173, width: 280, height: 24)
+        botTokenField.frame = NSRect(x: 120, y: 193, width: 280, height: 24)
         botTokenField.placeholderString = "123456:ABC-DEF..."
         botTokenField.stringValue = existing.botToken
         view.addSubview(botTokenField)
 
+        // Chat ID
         let chatLabel = makeLabel("Chat ID:")
-        chatLabel.frame = NSRect(x: 20, y: 140, width: 100, height: 20)
+        chatLabel.frame = NSRect(x: 20, y: 160, width: 100, height: 20)
         view.addSubview(chatLabel)
 
-        chatIdField.frame = NSRect(x: 120, y: 138, width: 280, height: 24)
+        chatIdField.frame = NSRect(x: 120, y: 158, width: 280, height: 24)
         chatIdField.placeholderString = "Your Telegram chat ID"
         chatIdField.stringValue = existing.chatId
         view.addSubview(chatIdField)
 
+        // Hotkey recorder
         let hotkeyLabel = makeLabel("Hotkey:")
-        hotkeyLabel.frame = NSRect(x: 20, y: 105, width: 100, height: 20)
+        hotkeyLabel.frame = NSRect(x: 20, y: 125, width: 100, height: 20)
         view.addSubview(hotkeyLabel)
 
-        hotkeyPopup.frame = NSRect(x: 120, y: 103, width: 120, height: 24)
-        let keys = ["F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12", "F13", "F14", "F15", "F16"]
-        hotkeyPopup.addItems(withTitles: keys)
-        if let idx = keys.firstIndex(of: existing.hotkey.uppercased()) {
-            hotkeyPopup.selectItem(at: idx)
-        }
-        view.addSubview(hotkeyPopup)
+        hotkeyField.frame = NSRect(x: 120, y: 123, width: 200, height: 24)
+        hotkeyField.isEditable = false
+        hotkeyField.isBezeled = true
+        hotkeyField.bezelStyle = .roundedBezel
+        hotkeyField.alignment = .center
+        hotkeyField.stringValue = existing.hotkeyDisplay.isEmpty ? "Click to record" : existing.hotkeyDisplay
+        hotkeyField.textColor = existing.hotkeyDisplay.isEmpty ? .placeholderTextColor : .labelColor
+        hotkeyField.recordedHotkey = HotkeyRecorderField.RecordedHotkey(
+            keyCode: existing.hotkeyKeyCode,
+            modifiers: existing.hotkeyModifiers,
+            displayString: existing.hotkeyDisplay
+        )
+        view.addSubview(hotkeyField)
 
-        let helpLabel = makeLabel("Hold the hotkey to record, release to send.", bold: false, size: 11)
+        // Help text
+        let helpLabel = makeLabel("Click the hotkey field, then press your desired shortcut.", bold: false, size: 11)
         helpLabel.textColor = .secondaryLabelColor
-        helpLabel.frame = NSRect(x: 20, y: 70, width: 380, height: 18)
+        helpLabel.frame = NSRect(x: 20, y: 90, width: 380, height: 18)
         view.addSubview(helpLabel)
 
+        let helpLabel2 = makeLabel("Hold the hotkey to record audio, release to send.", bold: false, size: 11)
+        helpLabel2.textColor = .secondaryLabelColor
+        helpLabel2.frame = NSRect(x: 20, y: 72, width: 380, height: 18)
+        view.addSubview(helpLabel2)
+
+        // Save button
         let saveButton = NSButton(title: "Save & Start", target: self, action: #selector(saveConfig))
         saveButton.frame = NSRect(x: 290, y: 20, width: 110, height: 32)
         saveButton.bezelStyle = .rounded
@@ -75,7 +91,6 @@ class SetupWindowController: NSWindowController, NSWindowDelegate {
     @objc func saveConfig() {
         let token = botTokenField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
         let chatId = chatIdField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
-        let hotkey = hotkeyPopup.titleOfSelectedItem ?? "F5"
 
         guard !token.isEmpty, !chatId.isEmpty else {
             let alert = NSAlert()
@@ -85,7 +100,21 @@ class SetupWindowController: NSWindowController, NSWindowDelegate {
             return
         }
 
-        let config = Config(botToken: token, chatId: chatId, hotkey: hotkey)
+        guard let recorded = hotkeyField.recordedHotkey, !recorded.displayString.isEmpty else {
+            let alert = NSAlert()
+            alert.messageText = "No hotkey set"
+            alert.informativeText = "Click the hotkey field and press your desired shortcut."
+            alert.runModal()
+            return
+        }
+
+        let config = Config(
+            botToken: token,
+            chatId: chatId,
+            hotkeyKeyCode: recorded.keyCode,
+            hotkeyModifiers: recorded.modifiers,
+            hotkeyDisplay: recorded.displayString
+        )
         config.save()
         onComplete?(config)
         close()

@@ -1,5 +1,6 @@
 import Cocoa
 import AVFoundation
+import Carbon.HIToolbox
 
 class AppDelegate: NSObject, NSApplicationDelegate {
     var statusItem: NSStatusItem!
@@ -10,12 +11,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var setupWindow: SetupWindowController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // Menu bar icon
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         updateIcon(recording: false)
         buildMenu()
 
-        // Request mic permission
         AVCaptureDevice.requestAccess(for: .audio) { granted in
             if !granted {
                 DispatchQueue.main.async {
@@ -27,11 +26,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
 
-        // Load config or show setup
         config = Config.load()
         if config.isConfigured {
             startListening()
-            print("🎤 Ready — hold \(config.hotkey) to record")
+            print("🎤 Ready — hold \(config.hotkeyDisplay) to record")
         } else {
             showSetup()
         }
@@ -43,11 +41,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(NSMenuItem.separator())
 
         let statusLabel = config.isConfigured
-            ? "Hold \(config.hotkey) to record"
+            ? "Hold \(config.hotkeyDisplay) to record"
             : "Not configured"
         menu.addItem(NSMenuItem(title: statusLabel, action: nil, keyEquivalent: ""))
         menu.addItem(NSMenuItem.separator())
-
         menu.addItem(NSMenuItem(title: "Settings...", action: #selector(showSetup), keyEquivalent: ","))
         menu.addItem(NSMenuItem(title: "Quit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
         statusItem.menu = menu
@@ -62,37 +59,46 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             self?.buildMenu()
             self?.startListening()
             NSApp.setActivationPolicy(.accessory)
-            print("🎤 Config saved — hold \(newConfig.hotkey) to record")
+            print("🎤 Config saved — hold \(newConfig.hotkeyDisplay) to record")
         }
         setupWindow?.showWindow(nil)
         setupWindow?.window?.makeKeyAndOrderFront(nil)
     }
 
     func startListening() {
-        let keyCode = config.keyCode
+        let targetKeyCode = config.hotkeyKeyCode
+        let targetModifiers = NSEvent.ModifierFlags(rawValue: config.hotkeyModifiers)
+            .intersection(.deviceIndependentFlagsMask)
 
-        // Global key monitor — key down
+        // Global key down
         NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            guard event.keyCode == keyCode, !event.isARepeat else { return }
+            guard event.keyCode == targetKeyCode, !event.isARepeat else { return }
+            let eventMods = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+            guard eventMods == targetModifiers else { return }
             self?.startRecording()
         }
 
-        // Global key monitor — key up
+        // Global key up
         NSEvent.addGlobalMonitorForEvents(matching: .keyUp) { [weak self] event in
-            guard event.keyCode == keyCode else { return }
+            guard event.keyCode == targetKeyCode else { return }
             self?.stopAndSend()
         }
 
-        // Local events (when app is focused)
+        // Local key down
         NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            if event.keyCode == keyCode, !event.isARepeat {
-                self?.startRecording()
-                return nil
+            if event.keyCode == targetKeyCode, !event.isARepeat {
+                let eventMods = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+                if eventMods == targetModifiers {
+                    self?.startRecording()
+                    return nil
+                }
             }
             return event
         }
+
+        // Local key up
         NSEvent.addLocalMonitorForEvents(matching: .keyUp) { [weak self] event in
-            if event.keyCode == keyCode {
+            if event.keyCode == targetKeyCode {
                 self?.stopAndSend()
                 return nil
             }
@@ -150,12 +156,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         guard let url = tempURL else { return }
 
-        // Skip if too short (accidental tap)
         do {
             let attrs = try FileManager.default.attributesOfItem(atPath: url.path)
             let size = attrs[.size] as? Int ?? 0
             if size < 5000 {
-                print("⏭ Too short, skipping")
+                print("⏭ Too short")
                 try? FileManager.default.removeItem(at: url)
                 return
             }
@@ -163,7 +168,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         sendVoice(fileURL: url) { success in
             try? FileManager.default.removeItem(at: url)
-            print(success ? "✅ Sent" : "❌ Failed to send")
+            print(success ? "✅ Sent" : "❌ Failed")
         }
     }
 
@@ -177,12 +182,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         var body = Data()
 
-        // chat_id
         body.append("--\(boundary)\r\n".data(using: .utf8)!)
         body.append("Content-Disposition: form-data; name=\"chat_id\"\r\n\r\n".data(using: .utf8)!)
         body.append("\(config.chatId)\r\n".data(using: .utf8)!)
 
-        // voice file
         body.append("--\(boundary)\r\n".data(using: .utf8)!)
         body.append("Content-Disposition: form-data; name=\"voice\"; filename=\"voice.m4a\"\r\n".data(using: .utf8)!)
         body.append("Content-Type: audio/m4a\r\n\r\n".data(using: .utf8)!)
