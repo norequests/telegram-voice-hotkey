@@ -5,7 +5,7 @@ class SetupWindowController: NSWindowController, NSWindowDelegate {
 
     private let botTokenField = NSTextField()
     private let chatIdField = NSTextField()
-    private let hotkeyField = HotkeyRecorderField()
+    private let hotkeyField = HotkeyRecorderView(frame: .zero)
 
     convenience init(existing: Config, onComplete: @escaping (Config) -> Void) {
         let window = NSWindow(
@@ -53,18 +53,15 @@ class SetupWindowController: NSWindowController, NSWindowDelegate {
         hotkeyLabel.frame = NSRect(x: 20, y: 125, width: 100, height: 20)
         view.addSubview(hotkeyLabel)
 
-        hotkeyField.frame = NSRect(x: 120, y: 123, width: 200, height: 24)
-        hotkeyField.isEditable = false
-        hotkeyField.isBezeled = true
-        hotkeyField.bezelStyle = .roundedBezel
-        hotkeyField.alignment = .center
-        hotkeyField.stringValue = existing.hotkeyDisplay.isEmpty ? "Click to record" : existing.hotkeyDisplay
-        hotkeyField.textColor = existing.hotkeyDisplay.isEmpty ? .placeholderTextColor : .labelColor
-        hotkeyField.recordedHotkey = HotkeyRecorderField.RecordedHotkey(
-            keyCode: existing.hotkeyKeyCode,
-            modifiers: existing.hotkeyModifiers,
-            displayString: existing.hotkeyDisplay
-        )
+        hotkeyField.frame = NSRect(x: 120, y: 119, width: 200, height: 30)
+        if !existing.hotkeyDisplay.isEmpty {
+            hotkeyField.title = existing.hotkeyDisplay
+            hotkeyField.recordedHotkey = HotkeyRecorderView.RecordedHotkey(
+                keyCode: existing.hotkeyKeyCode,
+                modifiers: existing.hotkeyModifiers,
+                displayString: existing.hotkeyDisplay
+            )
+        }
         view.addSubview(hotkeyField)
 
         // Help text

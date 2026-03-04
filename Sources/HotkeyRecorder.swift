@@ -1,71 +1,94 @@
 import Cocoa
 import Carbon.HIToolbox
 
-/// A text field that captures keyboard shortcuts when focused.
-/// Click the field, press your combo (e.g. ⌘⇧V), and it records it.
-class HotkeyRecorderField: NSTextField {
+/// A button-style view that captures keyboard shortcuts when clicked.
+/// Click it, press your combo (e.g. ⌘⇧V), and it records it.
+class HotkeyRecorderView: NSButton {
     var onRecorded: ((RecordedHotkey) -> Void)?
     var recordedHotkey: RecordedHotkey?
-
+    private var isListening = false
+    private var globalMonitor: Any?
     private var localMonitor: Any?
 
     struct RecordedHotkey: Codable, Equatable {
         var keyCode: UInt16
         var modifiers: UInt  // NSEvent.ModifierFlags.rawValue
         var displayString: String
-
-        var hasModifiers: Bool {
-            modifiers != 0
-        }
     }
 
-    override func becomeFirstResponder() -> Bool {
-        let result = super.becomeFirstResponder()
-        if result {
-            self.stringValue = "Press shortcut..."
-            self.textColor = .placeholderTextColor
-            startListening()
-        }
-        return result
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        setup()
     }
 
-    override func resignFirstResponder() -> Bool {
-        stopListening()
-        if let hk = recordedHotkey {
-            self.stringValue = hk.displayString
-            self.textColor = .labelColor
-        } else {
-            self.stringValue = "Click to record"
-            self.textColor = .placeholderTextColor
-        }
-        return super.resignFirstResponder()
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        setup()
     }
 
-    private func startListening() {
-        localMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown]) { [weak self] event in
+    private func setup() {
+        self.bezelStyle = .rounded
+        self.title = "Click to record"
+        self.target = self
+        self.action = #selector(startListening)
+        self.focusRingType = .exterior
+    }
+
+    @objc func startListening() {
+        guard !isListening else {
+            stopListening()
+            return
+        }
+        isListening = true
+        self.title = "Press shortcut..."
+
+        // Listen for key events
+        localMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             self?.handleKeyEvent(event)
-            return nil // consume the event
+            return nil
+        }
+
+        globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            self?.handleKeyEvent(event)
+        }
+
+        // Escape to cancel
+        NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            if event.keyCode == UInt16(kVK_Escape) {
+                self?.stopListening()
+                return nil
+            }
+            return event
         }
     }
 
     private func stopListening() {
-        if let monitor = localMonitor {
-            NSEvent.removeMonitor(monitor)
-            localMonitor = nil
+        isListening = false
+        if let m = localMonitor { NSEvent.removeMonitor(m); localMonitor = nil }
+        if let m = globalMonitor { NSEvent.removeMonitor(m); globalMonitor = nil }
+
+        if let hk = recordedHotkey {
+            self.title = hk.displayString
+        } else {
+            self.title = "Click to record"
         }
     }
 
     private func handleKeyEvent(_ event: NSEvent) {
+        // Ignore bare modifier keys and escape
+        if event.keyCode == UInt16(kVK_Escape) {
+            stopListening()
+            return
+        }
+
         let mods = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
 
-        // Build display string
         var parts: [String] = []
         if mods.contains(.control) { parts.append("⌃") }
         if mods.contains(.option)  { parts.append("⌥") }
         if mods.contains(.shift)   { parts.append("⇧") }
         if mods.contains(.command) { parts.append("⌘") }
 
-        // Get key name
         let keyName = keyCodeToString(event.keyCode)
         parts.append(keyName)
 
@@ -78,16 +101,11 @@ class HotkeyRecorderField: NSTextField {
         )
 
         self.recordedHotkey = hotkey
-        self.stringValue = display
-        self.textColor = .labelColor
         onRecorded?(hotkey)
-
-        // Resign focus after recording
-        self.window?.makeFirstResponder(nil)
+        stopListening()
     }
 
     private func keyCodeToString(_ keyCode: UInt16) -> String {
-        // Function keys
         let fKeys: [UInt16: String] = [
             UInt16(kVK_F1): "F1", UInt16(kVK_F2): "F2", UInt16(kVK_F3): "F3",
             UInt16(kVK_F4): "F4", UInt16(kVK_F5): "F5", UInt16(kVK_F6): "F6",
@@ -99,7 +117,6 @@ class HotkeyRecorderField: NSTextField {
         ]
         if let name = fKeys[keyCode] { return name }
 
-        // Special keys
         let special: [UInt16: String] = [
             UInt16(kVK_Space): "Space", UInt16(kVK_Return): "Return",
             UInt16(kVK_Tab): "Tab", UInt16(kVK_Delete): "Delete",
@@ -109,7 +126,7 @@ class HotkeyRecorderField: NSTextField {
         ]
         if let name = special[keyCode] { return name }
 
-        // Regular character — use InputSource to get the character
+        // Regular character
         let source = TISCopyCurrentKeyboardInputSource().takeRetainedValue()
         guard let layoutDataRef = TISGetInputSourceProperty(source, kTISPropertyUnicodeKeyLayoutData) else {
             return "Key\(keyCode)"
@@ -123,23 +140,15 @@ class HotkeyRecorderField: NSTextField {
             guard let basePtr = ptr.baseAddress else { return }
             let layoutPtr = basePtr.assumingMemoryBound(to: UCKeyboardLayout.self)
             UCKeyTranslate(
-                layoutPtr,
-                keyCode,
-                UInt16(kUCKeyActionDown),
-                0, // no modifiers for the base character
-                UInt32(LMGetKbdType()),
-                UInt32(kUCKeyTranslateNoDeadKeysBit),
-                &deadKeyState,
-                chars.count,
-                &length,
-                &chars
+                layoutPtr, keyCode, UInt16(kUCKeyActionDown), 0,
+                UInt32(LMGetKbdType()), UInt32(kUCKeyTranslateNoDeadKeysBit),
+                &deadKeyState, chars.count, &length, &chars
             )
         }
 
         if length > 0 {
             return String(utf16CodeUnits: chars, count: length).uppercased()
         }
-
         return "Key\(keyCode)"
     }
 }
