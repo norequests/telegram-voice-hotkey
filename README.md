@@ -1,6 +1,6 @@
-# Voice to Slop
+# Voice-to-Slop
 
-A macOS menu bar app for sending voice notes and screenshots to your AI agent via Telegram.
+A macOS menu bar app for sending voice notes and screenshots to your AI agent via Telegram. The fastest way to generate questionable code with your OpenClaw.
 
 **Hold a hotkey → record → release → voice note sent as you** via Telegram's User API (TDLib).
 
