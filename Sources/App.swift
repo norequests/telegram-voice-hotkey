@@ -336,31 +336,45 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         ))
         let screenshotMatch = _screenshotKeyCode > 0 && keyCode == _screenshotKeyCode && currentMods == screenshotTargetMods
 
-        // Handle screenshot combo (always hold-to-record style)
+        // ── Screenshot combo (always hold-to-record) ──
         if type == .keyDown && screenshotMatch && !isRepeat && !isRecording {
             DispatchQueue.main.async { self.startScreenshotRecording() }
             return nil
         }
-        if type == .keyUp && keyCode == _screenshotKeyCode && isRecording && isScreenshotMode {
-            DispatchQueue.main.async { self.stopAndSendScreenshot() }
+        // While recording in screenshot mode, suppress ALL key events (no beeps)
+        if isRecording && isScreenshotMode {
+            if type == .keyDown && keyCode == _screenshotKeyCode {
+                return nil  // suppress auto-repeat
+            }
+            if type == .keyUp && keyCode == _screenshotKeyCode {
+                DispatchQueue.main.async { self.stopAndSendScreenshot() }
+                return nil
+            }
+            // Suppress any other keys during screenshot recording too
             return nil
         }
 
-        // Regular voice hotkey
+        // ── Regular voice hotkey ──
         switch _mode {
         case .holdToRecord:
             if type == .keyDown && hotkeyMatch && !isRepeat {
                 DispatchQueue.main.async { self.startRecording() }
                 return nil
             }
-            if type == .keyUp && keyCode == _targetKeyCode && isRecording && !isScreenshotMode {
-                DispatchQueue.main.async { self.stopAndSend() }
-                return nil
+            // While recording, suppress ALL key events from the hotkey (including auto-repeat)
+            if isRecording {
+                if type == .keyDown && keyCode == _targetKeyCode {
+                    return nil  // suppress auto-repeat beeps
+                }
+                if type == .keyUp && keyCode == _targetKeyCode {
+                    DispatchQueue.main.async { self.stopAndSend() }
+                    return nil
+                }
             }
 
         case .pressToToggle:
             if type == .keyDown {
-                if isRecording && !isScreenshotMode {
+                if isRecording {
                     DispatchQueue.main.async { self.stopAndSend() }
                     return nil
                 } else if hotkeyMatch && !isRepeat {
