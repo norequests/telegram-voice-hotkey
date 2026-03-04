@@ -45,7 +45,7 @@ cmake \
     -DCMAKE_BUILD_TYPE=Release \
     -DOPENSSL_ROOT_DIR="$OPENSSL_DIR" \
     -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" \
-    -DCMAKE_OSX_ARCHITECTURES="arm64" \
+    -DCMAKE_OSX_ARCHITECTURES="$(uname -m)" \
     ..
 
 cmake --build . --target install -j$(sysctl -n hw.ncpu)
