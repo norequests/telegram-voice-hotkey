@@ -3,6 +3,25 @@ import AVFoundation
 import Carbon.HIToolbox
 import ServiceManagement
 
+func log(_ message: String) {
+    let timestamp = ISO8601DateFormatter().string(from: Date())
+    let line = "[\(timestamp)] \(message)\n"
+    print(message)
+
+    let logDir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        .appendingPathComponent("TelegramVoiceHotkey")
+    try? FileManager.default.createDirectory(at: logDir, withIntermediateDirectories: true)
+    let logFile = logDir.appendingPathComponent("app.log")
+
+    if let handle = try? FileHandle(forWritingTo: logFile) {
+        handle.seekToEndOfFile()
+        handle.write(line.data(using: .utf8)!)
+        handle.closeFile()
+    } else {
+        try? line.data(using: .utf8)?.write(to: logFile)
+    }
+}
+
 class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     var statusItem: NSStatusItem!
     var recorder: AVAudioRecorder?
@@ -76,7 +95,18 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         menu.addItem(NSMenuItem.separator())
         menu.addItem(NSMenuItem(title: "Settings...", action: #selector(showSetup), keyEquivalent: ","))
+
+        let logItem = NSMenuItem(title: "View Log...", action: #selector(openLog), keyEquivalent: "l")
+        logItem.target = self
+        menu.addItem(logItem)
+
         menu.addItem(NSMenuItem(title: "Quit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
+    }
+
+    @objc func openLog() {
+        let logFile = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+            .appendingPathComponent("TelegramVoiceHotkey/app.log")
+        NSWorkspace.shared.open(logFile)
     }
 
     @objc func retryPermissions() {
@@ -93,7 +123,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if AXIsProcessTrusted() {
             startListening()
             buildMenu()
-            print("🎤 Ready — \(config.hotkeyDisplay)")
+            log("🎤 Ready — \(config.hotkeyDisplay)")
         } else {
             // Show the system prompt once
             AXIsProcessTrustedWithOptions(
@@ -101,7 +131,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             )
 
             // Poll every 2 seconds until granted
-            print("⏳ Waiting for Accessibility permission...")
+            log("⏳ Waiting for Accessibility permission...")
             accessibilityTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] timer in
                 if AXIsProcessTrusted() {
                     timer.invalidate()
@@ -109,7 +139,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     self?.startListening()
                     self?.buildMenu()
                     self?.updateIcon(recording: false)
-                    print("✅ Accessibility granted — hotkey active")
+                    log("✅ Accessibility granted — hotkey active")
                 }
             }
             buildMenu()
@@ -156,7 +186,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             self.tryStartListening()
             self.updateLaunchAtLogin(newConfig.launchAtLogin)
             NSApp.setActivationPolicy(.accessory)
-            print("🎤 Config saved — \(newConfig.hotkeyDisplay)")
+            log("🎤 Config saved — \(newConfig.hotkeyDisplay)")
         }
         setupWindow?.showWindow(nil)
         setupWindow?.window?.makeKeyAndOrderFront(nil)
@@ -173,7 +203,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     try SMAppService.mainApp.unregister()
                 }
             } catch {
-                print("⚠️ Launch at login: \(error)")
+                log("⚠️ Launch at login: \(error)")
             }
         }
     }
@@ -199,7 +229,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             },
             userInfo: selfPtr
         ) else {
-            print("❌ Failed to create event tap")
+            log("❌ Failed to create event tap")
             return
         }
 
@@ -212,7 +242,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         CFRunLoopAddSource(CFRunLoopGetCurrent(), runLoopSource, .commonModes)
         CGEvent.tapEnable(tap: tap, enable: true)
 
-        print("✅ Event tap active — listening for \(config.hotkeyDisplay)")
+        log("✅ Event tap active — listening for \(config.hotkeyDisplay)")
     }
 
     func handleCGEvent(proxy: CGEventTapProxy, type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
@@ -308,7 +338,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     func startRecording() {
         guard !isRecording, config.isConfigured else {
-            print("⚠️ startRecording skipped — isRecording=\(isRecording), configured=\(config.isConfigured)")
+            log("⚠️ startRecording skipped — isRecording=\(isRecording), configured=\(config.isConfigured)")
             return
         }
         isRecording = true
@@ -331,14 +361,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             let started = rec.record()
             if started {
                 recorder = rec
-                print("🔴 Recording to: \(url.path)")
+                log("🔴 Recording to: \(url.path)")
             } else {
-                print("❌ AVAudioRecorder.record() returned false")
+                log("❌ AVAudioRecorder.record() returned false")
                 isRecording = false
                 updateIcon(recording: false)
             }
         } catch {
-            print("❌ AVAudioRecorder init failed: \(error)")
+            log("❌ AVAudioRecorder init failed: \(error)")
             isRecording = false
             updateIcon(recording: false)
         }
@@ -350,7 +380,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         updateIcon(recording: false)
 
         guard let rec = recorder else {
-            print("⬛ No recorder to stop")
+            log("⬛ No recorder to stop")
             return
         }
 
@@ -359,25 +389,25 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         recorder = nil
 
         guard let url = tempURL else {
-            print("⬛ No temp URL")
+            log("⬛ No temp URL")
             return
         }
 
-        print("⬛ Stopped — duration: \(String(format: "%.1f", duration))s")
+        log("⬛ Stopped — duration: \(String(format: "%.1f", duration))s")
 
         // Check file exists and has content
         do {
             let attrs = try FileManager.default.attributesOfItem(atPath: url.path)
             let size = attrs[.size] as? Int ?? 0
-            print("📁 File size: \(size) bytes")
+            log("📁 File size: \(size) bytes")
 
             if duration < 0.5 || size < 1000 {
-                print("⏭ Too short (\(String(format: "%.1f", duration))s, \(size)b), discarding")
+                log("⏭ Too short (\(String(format: "%.1f", duration))s, \(size)b), discarding")
                 try? FileManager.default.removeItem(at: url)
                 return
             }
         } catch {
-            print("❌ Can't read file: \(error)")
+            log("❌ Can't read file: \(error)")
             return
         }
 
@@ -408,7 +438,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         do {
             body.append(try Data(contentsOf: fileURL))
         } catch {
-            print("❌ Read error: \(error)")
+            log("❌ Read error: \(error)")
             completion(false)
             return
         }
@@ -418,13 +448,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         URLSession.shared.dataTask(with: request) { data, response, error in
             if let error = error {
-                print("❌ Network: \(error)")
+                log("❌ Network: \(error)")
                 completion(false)
                 return
             }
             let ok = (response as? HTTPURLResponse)?.statusCode == 200
             if !ok, let data = data, let text = String(data: data, encoding: .utf8) {
-                print("❌ API: \(text)")
+                log("❌ API: \(text)")
             }
             completion(ok)
         }.resume()
