@@ -50,9 +50,27 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem.menu = menu
     }
 
+    func ensureEditMenu() {
+        if NSApp.mainMenu == nil {
+            let mainMenu = NSMenu()
+            let editItem = NSMenuItem()
+            editItem.submenu = {
+                let m = NSMenu(title: "Edit")
+                m.addItem(NSMenuItem(title: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x"))
+                m.addItem(NSMenuItem(title: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c"))
+                m.addItem(NSMenuItem(title: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v"))
+                m.addItem(NSMenuItem(title: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a"))
+                return m
+            }()
+            mainMenu.addItem(editItem)
+            NSApp.mainMenu = mainMenu
+        }
+    }
+
     @objc func showSetup() {
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
+        ensureEditMenu()
 
         setupWindow = SetupWindowController(existing: config) { [weak self] newConfig in
             self?.config = newConfig
