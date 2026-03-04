@@ -217,12 +217,17 @@ class TelegramClient {
                 send([
                     "@type": "setTdlibParameters",
                     "database_directory": tdlibDataDir(),
+                    "files_directory": tdlibDataDir() + "/files",
+                    "database_encryption_key": "",
+                    "use_file_database": true,
+                    "use_chat_info_database": true,
                     "use_message_database": true,
                     "use_secret_chats": false,
                     "api_id": apiId,
                     "api_hash": apiHash,
                     "system_language_code": "en",
                     "device_model": "macOS",
+                    "system_version": "",
                     "application_version": "1.0.0",
                 ])
             case "authorizationStateWaitPhoneNumber":

@@ -245,16 +245,17 @@ class SetupWindowController: NSWindowController, NSWindowDelegate {
 
         if telegramClient == nil {
             telegramClient = TelegramClient(apiId: apiId, apiHash: apiHash)
-            telegramClient?.onAuthStateChanged = { [weak self] state in
-                DispatchQueue.main.async { self?.handleAuthState(state) }
-            }
-            telegramClient?.onError = { [weak self] msg in
-                DispatchQueue.main.async {
-                    self?.loginStatus.stringValue = "❌ \(msg)"
-                    self?.loginStatus.textColor = .systemRed
-                }
-            }
             telegramClient?.start()
+        }
+        // Always wire up callbacks (even on existing client)
+        telegramClient?.onAuthStateChanged = { [weak self] state in
+            DispatchQueue.main.async { self?.handleAuthState(state) }
+        }
+        telegramClient?.onError = { [weak self] msg in
+            DispatchQueue.main.async {
+                self?.loginStatus.stringValue = "❌ \(msg)"
+                self?.loginStatus.textColor = .systemRed
+            }
         }
 
         let phone = phoneField.stringValue.trimmingCharacters(in: .whitespaces)
