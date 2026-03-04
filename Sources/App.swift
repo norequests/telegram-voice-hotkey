@@ -31,6 +31,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     var setupWindow: SetupWindowController?
     var eventTap: CFMachPort?
     var accessibilityTimer: Timer?
+    var telegramClient: TelegramClient?
 
     var _targetKeyCode: CGKeyCode = 0
     var _targetModifiers: UInt = 0
@@ -54,6 +55,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         config = Config.load()
         if config.isConfigured {
+            if config.sendMode == .userAPI {
+                startTelegramClient()
+            }
             tryStartListening()
         } else {
             showSetup()
@@ -190,6 +194,22 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         setupWindow?.showWindow(nil)
         setupWindow?.window?.makeKeyAndOrderFront(nil)
+    }
+
+    // MARK: - TDLib User API
+
+    func startTelegramClient() {
+        guard config.sendMode == .userAPI, config.apiId > 0, !config.apiHash.isEmpty else { return }
+        if telegramClient != nil { return }
+
+        telegramClient = TelegramClient(apiId: config.apiId, apiHash: config.apiHash)
+        telegramClient?.onAuthStateChanged = { [weak self] state in
+            if state == .ready {
+                log("✅ TDLib: User authenticated and ready")
+            }
+        }
+        telegramClient?.start()
+        log("🔑 TDLib client started")
     }
 
     // MARK: - Launch at Login
@@ -411,17 +431,31 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             return
         }
 
-        // Convert m4a → ogg/opus for native Telegram voice playback
-        let oggURL = url.deletingPathExtension().appendingPathExtension("ogg")
-        convertToOgg(input: url, output: oggURL) { [self] success in
-            let sendURL = success ? oggURL : url
-            let filename = success ? "voice.ogg" : "voice.m4a"
-            let mime = success ? "audio/ogg" : "audio/m4a"
+        if config.sendMode == .userAPI, let client = telegramClient, client.isLoggedIn {
+            // User API: convert to ogg then send via TDLib
+            let oggURL = url.deletingPathExtension().appendingPathExtension("ogg")
+            convertToOgg(input: url, output: oggURL) { [self] success in
+                let sendURL = success ? oggURL : url
+                let chatId = Int64(self.config.chatId) ?? 0
+                client.sendVoiceNote(chatId: chatId, filePath: sendURL.path, duration: Int(duration)) { sent in
+                    try? FileManager.default.removeItem(at: url)
+                    try? FileManager.default.removeItem(at: oggURL)
+                    log(sent ? "✅ Sent via User API" : "❌ User API send failed")
+                }
+            }
+        } else {
+            // Bot API: convert to ogg then send via HTTP
+            let oggURL = url.deletingPathExtension().appendingPathExtension("ogg")
+            convertToOgg(input: url, output: oggURL) { [self] success in
+                let sendURL = success ? oggURL : url
+                let filename = success ? "voice.ogg" : "voice.m4a"
+                let mime = success ? "audio/ogg" : "audio/m4a"
 
-            self.sendVoice(fileURL: sendURL, filename: filename, mimeType: mime) { sent in
-                try? FileManager.default.removeItem(at: url)
-                try? FileManager.default.removeItem(at: oggURL)
-                log(sent ? "✅ Sent to Telegram" : "❌ Send failed")
+                self.sendVoice(fileURL: sendURL, filename: filename, mimeType: mime) { sent in
+                    try? FileManager.default.removeItem(at: url)
+                    try? FileManager.default.removeItem(at: oggURL)
+                    log(sent ? "✅ Sent via Bot API" : "❌ Bot API send failed")
+                }
             }
         }
     }

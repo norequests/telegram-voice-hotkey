@@ -1,0 +1,6 @@
+.build/
+.swiftpm/
+tdlib-local/
+.build-tdlib/
+TelegramVoiceHotkey.app/
+*.zip

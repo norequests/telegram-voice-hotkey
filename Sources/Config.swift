@@ -1,8 +1,13 @@
 import Foundation
 
 enum RecordingMode: String, Codable {
-    case holdToRecord = "hold"     // hold hotkey, release to send
-    case pressToToggle = "toggle"  // press to start, press any key to stop & send
+    case holdToRecord = "hold"
+    case pressToToggle = "toggle"
+}
+
+enum SendMode: String, Codable {
+    case botAPI = "bot"       // Send via Bot API (message appears from bot)
+    case userAPI = "user"     // Send via User API/TDLib (message appears from you)
 }
 
 struct Config: Codable {
@@ -13,6 +18,10 @@ struct Config: Codable {
     var hotkeyDisplay: String
     var recordingMode: RecordingMode
     var launchAtLogin: Bool
+    var sendMode: SendMode
+    var apiId: Int
+    var apiHash: String
+    var userLoggedIn: Bool
 
     static let configURL: URL = {
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
@@ -24,18 +33,21 @@ struct Config: Codable {
     static let `default` = Config(
         botToken: "",
         chatId: "",
-        hotkeyKeyCode: 0x60, // F5
+        hotkeyKeyCode: 0x60,
         hotkeyModifiers: 0,
         hotkeyDisplay: "F5",
         recordingMode: .holdToRecord,
-        launchAtLogin: false
+        launchAtLogin: false,
+        sendMode: .botAPI,
+        apiId: 0,
+        apiHash: "",
+        userLoggedIn: false
     )
 
     static func load() -> Config {
         guard FileManager.default.fileExists(atPath: configURL.path),
               let data = try? Data(contentsOf: configURL),
-              let config = try? JSONDecoder().decode(Config.self, from: data),
-              !config.botToken.isEmpty, !config.chatId.isEmpty
+              let config = try? JSONDecoder().decode(Config.self, from: data)
         else {
             return .default
         }
@@ -51,6 +63,11 @@ struct Config: Codable {
     }
 
     var isConfigured: Bool {
-        !botToken.isEmpty && !chatId.isEmpty
+        switch sendMode {
+        case .botAPI:
+            return !botToken.isEmpty && !chatId.isEmpty
+        case .userAPI:
+            return apiId > 0 && !apiHash.isEmpty && !chatId.isEmpty && userLoggedIn
+        }
     }
 }

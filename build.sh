@@ -2,6 +2,13 @@
 # Build a proper .app bundle you can double-click and drag to /Applications
 set -e
 
+# Build TDLib if not already built
+if [ ! -f "tdlib-local/lib/libtdjson.dylib" ]; then
+    echo "📦 TDLib not found. Building (this takes a few minutes first time)..."
+    chmod +x scripts/setup-tdlib.sh
+    scripts/setup-tdlib.sh
+fi
+
 echo "🔨 Building..."
 swift build -c release
 
@@ -9,10 +16,26 @@ APP="TelegramVoiceHotkey.app"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS"
 mkdir -p "$APP/Contents/Resources"
+mkdir -p "$APP/Contents/Resources/lib"
 
 cp .build/release/TelegramVoiceHotkey "$APP/Contents/MacOS/"
 
-# Generate .icns icon if iconutil is available
+# Bundle TDLib
+cp tdlib-local/lib/libtdjson.dylib "$APP/Contents/Resources/lib/"
+# Fix rpath in the binary
+install_name_tool -add_rpath "@executable_path/../Resources/lib" "$APP/Contents/MacOS/TelegramVoiceHotkey" 2>/dev/null || true
+echo "📦 Bundled TDLib"
+
+# Bundle ffmpeg for OGG/Opus conversion
+SYS_FFMPEG=$(which ffmpeg 2>/dev/null || echo "")
+if [ -n "$SYS_FFMPEG" ]; then
+    cp "$SYS_FFMPEG" "$APP/Contents/Resources/ffmpeg"
+    echo "📦 Bundled ffmpeg"
+else
+    echo "⚠️  ffmpeg not found — install: brew install ffmpeg"
+fi
+
+# Generate .icns icon
 if command -v iconutil &>/dev/null && [ -f Assets/icon.png ]; then
     ICONSET="$APP/Contents/Resources/AppIcon.iconset"
     mkdir -p "$ICONSET"
@@ -28,9 +51,7 @@ if command -v iconutil &>/dev/null && [ -f Assets/icon.png ]; then
     sips -z 1024 1024 Assets/icon.png --out "$ICONSET/icon_512x512@2x.png" 2>/dev/null
     iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/AppIcon.icns"
     rm -rf "$ICONSET"
-    echo "🎨 Icon set generated"
-else
-    echo "⚠️  iconutil not found (Linux?) — icon skipped. CI/macOS will generate it."
+    echo "🎨 Icon generated"
 fi
 
 cat > "$APP/Contents/Info.plist" << 'EOF'
@@ -50,10 +71,10 @@ cat > "$APP/Contents/Info.plist" << 'EOF'
     <string>1.0.0</string>
     <key>CFBundleShortVersionString</key>
     <string>1.0.0</string>
-    <key>CFBundlePackageType</key>
-    <string>APPL</string>
     <key>CFBundleIconFile</key>
     <string>AppIcon</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
     <key>LSUIElement</key>
     <true/>
     <key>LSMinimumSystemVersion</key>
@@ -64,26 +85,8 @@ cat > "$APP/Contents/Info.plist" << 'EOF'
 </plist>
 EOF
 
-# Bundle ffmpeg for OGG/Opus conversion
-FFMPEG_BIN="$APP/Contents/Resources/ffmpeg"
-if [ ! -f "$FFMPEG_BIN" ]; then
-    # Check for system ffmpeg first
-    SYS_FFMPEG=$(which ffmpeg 2>/dev/null || echo "")
-    if [ -n "$SYS_FFMPEG" ]; then
-        cp "$SYS_FFMPEG" "$FFMPEG_BIN"
-        echo "📦 Bundled ffmpeg from: $SYS_FFMPEG"
-    else
-        echo ""
-        echo "⚠️  ffmpeg not found. Voice notes need ffmpeg for OGG/Opus format."
-        echo "   Install it: brew install ffmpeg"
-        echo "   Then re-run ./build.sh to bundle it."
-    fi
-fi
-
 echo ""
 echo "✅ Built: $APP"
 echo ""
 echo "To install:"
 echo "  cp -r TelegramVoiceHotkey.app /Applications/"
-echo ""
-echo "Then double-click it from /Applications or Launchpad."
