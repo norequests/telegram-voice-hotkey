@@ -156,10 +156,17 @@ class TelegramClient {
             guard let self = self else { return }
             let type = response["@type"] as? String ?? ""
 
+            if type == "error" {
+                let msg = response["message"] as? String ?? "unknown"
+                log("❌ createPrivateChat failed: \(msg) — trying direct send")
+            }
+
             // Get the actual chat_id (might differ from user_id)
             var tdChatId = chatId
             if type == "chat", let cid = response["id"] as? Int64 {
                 tdChatId = cid
+            } else if type == "chat", let cid = response["id"] as? NSNumber {
+                tdChatId = cid.int64Value
             }
 
             self.send([
@@ -187,7 +194,7 @@ class TelegramClient {
             "@type": "createPrivateChat",
             "@extra": chatExtra,
             "user_id": chatId,
-            "force": false,
+            "force": true,
         ])
     }
 
@@ -199,9 +206,16 @@ class TelegramClient {
         pendingCallbacks[chatExtra] = { [weak self] response in
             guard let self = self else { return }
             let type = response["@type"] as? String ?? ""
+            if type == "error" {
+                let msg = response["message"] as? String ?? "unknown"
+                log("❌ createPrivateChat for photo failed: \(msg) — trying direct send")
+            }
+
             var tdChatId = chatId
             if type == "chat", let cid = response["id"] as? Int64 {
                 tdChatId = cid
+            } else if type == "chat", let cid = response["id"] as? NSNumber {
+                tdChatId = cid.int64Value
             }
             log("📸 sendPhoto: createPrivateChat returned \(type), using chatId=\(tdChatId)")
 
@@ -243,7 +257,7 @@ class TelegramClient {
             "@type": "createPrivateChat",
             "@extra": chatExtra,
             "user_id": chatId,
-            "force": false,
+            "force": true,
         ])
     }
 
