@@ -11,23 +11,41 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install ffmpeg
-        run: brew install ffmpeg
+      - name: Install dependencies
+        run: brew install gperf cmake openssl ffmpeg
 
-      - name: Build release binary
+      - name: Cache TDLib
+        id: cache-tdlib
+        uses: actions/cache@v4
+        with:
+          path: tdlib-local
+          key: tdlib-${{ runner.os }}-${{ runner.arch }}-v1
+
+      - name: Build TDLib from source
+        if: steps.cache-tdlib.outputs.cache-hit != 'true'
+        run: |
+          chmod +x scripts/setup-tdlib.sh
+          scripts/setup-tdlib.sh
+
+      - name: Build Swift app
         run: swift build -c release
 
       - name: Create app bundle
         run: |
           APP="TelegramVoiceHotkey.app"
           mkdir -p "$APP/Contents/MacOS"
-          mkdir -p "$APP/Contents/Resources"
+          mkdir -p "$APP/Contents/Resources/lib"
+
           cp .build/release/TelegramVoiceHotkey "$APP/Contents/MacOS/"
 
-          # Bundle ffmpeg for self-contained OGG/Opus conversion
+          # Bundle TDLib
+          cp tdlib-local/lib/libtdjson.dylib "$APP/Contents/Resources/lib/"
+          install_name_tool -add_rpath "@executable_path/../Resources/lib" "$APP/Contents/MacOS/TelegramVoiceHotkey" 2>/dev/null || true
+
+          # Bundle ffmpeg
           cp $(which ffmpeg) "$APP/Contents/Resources/ffmpeg"
 
-          # Generate .icns icon
+          # Generate icon
           if [ -f Assets/icon.png ]; then
             ICONSET="$APP/Contents/Resources/AppIcon.iconset"
             mkdir -p "$ICONSET"
