@@ -13,7 +13,7 @@ mkdir -p "$APP/Contents/Resources/lib"
 
 cp .build/release/TelegramVoiceHotkey "$APP/Contents/MacOS/"
 
-# Bundle TDLib (optional — only if built locally)
+# Bundle TDLib
 if [ -d "tdlib-local/lib" ] && ls tdlib-local/lib/libtdjson*.dylib 1>/dev/null 2>&1; then
     for f in tdlib-local/lib/libtdjson*.dylib; do
         cp -L "$f" "$APP/Contents/Resources/lib/"
@@ -21,7 +21,11 @@ if [ -d "tdlib-local/lib" ] && ls tdlib-local/lib/libtdjson*.dylib 1>/dev/null 2
     install_name_tool -add_rpath "@executable_path/../Resources/lib" "$APP/Contents/MacOS/TelegramVoiceHotkey" 2>/dev/null || true
     echo "📦 Bundled TDLib ($(ls "$APP/Contents/Resources/lib/" | grep tdjson | tr '\n' ' '))"
 else
-    echo "⏭  TDLib not found — User API disabled (Bot API works fine)"
+    echo ""
+    echo "⚠️  TDLib not found! Voice sending won't work without it."
+    echo "   Run: ./scripts/setup-tdlib.sh"
+    echo "   Then rebuild: ./build.sh"
+    echo ""
 fi
 
 # Bundle ffmpeg for OGG/Opus conversion

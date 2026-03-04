@@ -54,12 +54,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
 
         config = Config.load()
-        log("📋 Config loaded — sendMode=\(config.sendMode.rawValue) botToken=\(config.botToken.prefix(10))... chatId=\(config.chatId) isConfigured=\(config.isConfigured)")
+        log("📋 Config loaded — apiId=\(config.apiId) chatId=\(config.chatId) loggedIn=\(config.userLoggedIn) isConfigured=\(config.isConfigured)")
         if config.isConfigured {
-            if config.sendMode == .userAPI {
-                startTelegramClient()
-            }
+            startTelegramClient()
             tryStartListening()
+        } else if config.hasCredentials {
+            // Has API creds but not logged in yet — start TDLib for login, show setup
+            startTelegramClient()
+            showSetup()
         } else {
             showSetup()
         }
@@ -71,7 +73,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         statusItem.menu = menu
     }
 
-    // Rebuild menu contents every time it opens — always fresh status
     func menuWillOpen(_ menu: NSMenu) {
         menu.removeAllItems()
         menu.addItem(NSMenuItem(title: "Telegram Voice Hotkey", action: nil, keyEquivalent: ""))
@@ -89,13 +90,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             let tapStatus = eventTap != nil ? "✅ Hotkey: Active" : "❌ Hotkey: Inactive"
             menu.addItem(NSMenuItem(title: tapStatus, action: nil, keyEquivalent: ""))
 
+            let tdlibStatus = telegramClient?.isLoggedIn == true ? "✅ Telegram: Connected" : "❌ Telegram: Not connected"
+            menu.addItem(NSMenuItem(title: tdlibStatus, action: nil, keyEquivalent: ""))
+
             if !AXIsProcessTrusted() || eventTap == nil {
                 let retryItem = NSMenuItem(title: "Retry Permissions", action: #selector(retryPermissions), keyEquivalent: "r")
                 retryItem.target = self
                 menu.addItem(retryItem)
             }
         } else {
-            menu.addItem(NSMenuItem(title: "Not configured", action: nil, keyEquivalent: ""))
+            menu.addItem(NSMenuItem(title: "Not configured — open Settings", action: nil, keyEquivalent: ""))
         }
 
         menu.addItem(NSMenuItem.separator())
@@ -130,12 +134,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             buildMenu()
             log("🎤 Ready — \(config.hotkeyDisplay)")
         } else {
-            // Show the system prompt once
             AXIsProcessTrustedWithOptions(
                 [kAXTrustedCheckOptionPrompt.takeUnretainedValue(): true] as CFDictionary
             )
 
-            // Poll every 2 seconds until granted
             log("⏳ Waiting for Accessibility permission...")
             accessibilityTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] timer in
                 if AXIsProcessTrusted() {
@@ -151,76 +153,68 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
-    // MARK: - Edit Menu (for paste in setup)
-
-    func ensureEditMenu() {
-        if NSApp.mainMenu == nil {
-            let mainMenu = NSMenu()
-            let editItem = NSMenuItem()
-            editItem.submenu = {
-                let m = NSMenu(title: "Edit")
-                m.addItem(NSMenuItem(title: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x"))
-                m.addItem(NSMenuItem(title: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c"))
-                m.addItem(NSMenuItem(title: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v"))
-                m.addItem(NSMenuItem(title: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a"))
-                return m
-            }()
-            mainMenu.addItem(editItem)
-            NSApp.mainMenu = mainMenu
-        }
-    }
-
     // MARK: - Setup Window
 
     @objc func showSetup() {
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
-        ensureEditMenu()
 
         setupWindow = SetupWindowController(existing: config) { [weak self] newConfig in
             guard let self = self else { return }
             self.config = newConfig
+
+            // Restart TDLib if needed
+            if self.telegramClient == nil && newConfig.hasCredentials {
+                self.startTelegramClient()
+            }
+
             self.buildMenu()
 
-            // Kill old event tap if re-configuring
             if let oldTap = self.eventTap {
                 CGEvent.tapEnable(tap: oldTap, enable: false)
                 self.eventTap = nil
             }
 
-            self.tryStartListening()
+            if newConfig.isConfigured {
+                self.tryStartListening()
+            }
             self.updateLaunchAtLogin(newConfig.launchAtLogin)
             NSApp.setActivationPolicy(.accessory)
-            log("🎤 Config saved — \(newConfig.hotkeyDisplay) sendMode=\(newConfig.sendMode.rawValue) botToken=\(newConfig.botToken.prefix(10))... chatId=\(newConfig.chatId) isConfigured=\(newConfig.isConfigured)")
+            log("🎤 Config saved — \(newConfig.hotkeyDisplay) apiId=\(newConfig.apiId) chatId=\(newConfig.chatId) loggedIn=\(newConfig.userLoggedIn) isConfigured=\(newConfig.isConfigured)")
         }
         setupWindow?.showWindow(nil)
         setupWindow?.window?.makeKeyAndOrderFront(nil)
     }
 
-    // MARK: - TDLib User API
+    // MARK: - TDLib
 
     func startTelegramClient() {
-        guard config.sendMode == .userAPI, config.apiId > 0, !config.apiHash.isEmpty else {
+        guard config.apiId > 0, !config.apiHash.isEmpty else {
             log("⏭ TDLib skipped — no valid API credentials")
             return
         }
         guard TelegramClient.isAvailable else {
-            log("⏭ TDLib skipped — library not available")
+            log("⏭ TDLib skipped — library not available (run scripts/setup-tdlib.sh)")
             return
         }
         if telegramClient != nil { return }
 
         telegramClient = TelegramClient(apiId: config.apiId, apiHash: config.apiHash)
-        telegramClient?.onAuthStateChanged = { state in
-            if state == .ready {
-                log("✅ TDLib: User authenticated and ready")
+        telegramClient?.onAuthStateChanged = { [weak self] state in
+            DispatchQueue.main.async {
+                if state == .ready {
+                    log("✅ TDLib: User authenticated and ready")
+                    self?.config.userLoggedIn = true
+                    self?.config.save()
+                    self?.buildMenu()
+                }
             }
         }
         telegramClient?.onError = { msg in
             log("❌ TDLib error: \(msg)")
         }
         telegramClient?.start()
-        log("🔑 TDLib client started")
+        log("🔑 TDLib client started (apiId=\(config.apiId))")
     }
 
     // MARK: - Launch at Login
@@ -242,7 +236,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     // MARK: - Event Tap (Global Hotkey)
 
     func startListening() {
-        // Don't create duplicate taps
         if eventTap != nil { return }
 
         let eventMask = (1 << CGEventType.keyDown.rawValue) | (1 << CGEventType.keyUp.rawValue)
@@ -277,7 +270,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     func handleCGEvent(proxy: CGEventTapProxy, type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
-        // Re-enable tap if system disabled it
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
             if let tap = eventTap {
                 CGEvent.tapEnable(tap: tap, enable: true)
@@ -324,18 +316,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         return Unmanaged.passUnretained(event)
     }
 
-    // MARK: - Icon & Visual Feedback
+    // MARK: - Icon
 
     func updateIcon(recording: Bool) {
         DispatchQueue.main.async {
             guard let button = self.statusItem.button else { return }
 
             if recording {
-                // Red circle + mic for recording state
                 let image = NSImage(systemSymbolName: "mic.circle.fill", accessibilityDescription: "Recording")
                 image?.isTemplate = false
 
-                // Tint it red
                 let tinted = NSImage(size: NSSize(width: 22, height: 22), flipped: false) { rect in
                     NSColor.systemRed.set()
                     image?.draw(in: rect, from: .zero, operation: .sourceOver, fraction: 1.0)
@@ -426,7 +416,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         log("⬛ Stopped — duration: \(String(format: "%.1f", duration))s")
 
-        // Check file exists and has content
         do {
             let attrs = try FileManager.default.attributesOfItem(atPath: url.path)
             let size = attrs[.size] as? Int ?? 0
@@ -442,43 +431,30 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             return
         }
 
-        if config.sendMode == .userAPI, let client = telegramClient, client.isLoggedIn {
-            // User API: convert to ogg then send via TDLib
-            let oggURL = url.deletingPathExtension().appendingPathExtension("ogg")
-            convertToOgg(input: url, output: oggURL) { [self] success in
-                let sendURL = success ? oggURL : url
-                let chatId = Int64(self.config.chatId) ?? 0
-                client.sendVoiceNote(chatId: chatId, filePath: sendURL.path, duration: Int(duration)) { sent in
-                    try? FileManager.default.removeItem(at: url)
-                    try? FileManager.default.removeItem(at: oggURL)
-                    log(sent ? "✅ Sent via User API" : "❌ User API send failed")
-                }
-            }
-        } else {
-            // Bot API: convert to ogg then send via HTTP
-            let oggURL = url.deletingPathExtension().appendingPathExtension("ogg")
-            convertToOgg(input: url, output: oggURL) { [self] success in
-                let sendURL = success ? oggURL : url
-                let filename = success ? "voice.ogg" : "voice.m4a"
-                let mime = success ? "audio/ogg" : "audio/m4a"
+        guard let client = telegramClient, client.isLoggedIn else {
+            log("❌ TDLib not connected — can't send")
+            return
+        }
 
-                self.sendVoice(fileURL: sendURL, filename: filename, mimeType: mime) { sent in
-                    try? FileManager.default.removeItem(at: url)
-                    try? FileManager.default.removeItem(at: oggURL)
-                    log(sent ? "✅ Sent via Bot API" : "❌ Bot API send failed")
-                }
+        let oggURL = url.deletingPathExtension().appendingPathExtension("ogg")
+        convertToOgg(input: url, output: oggURL) { [self] success in
+            let sendURL = success ? oggURL : url
+            let chatId = Int64(self.config.chatId) ?? 0
+            client.sendVoiceNote(chatId: chatId, filePath: sendURL.path, duration: Int(duration)) { sent in
+                try? FileManager.default.removeItem(at: url)
+                try? FileManager.default.removeItem(at: oggURL)
+                log(sent ? "✅ Sent voice note" : "❌ Send failed")
             }
         }
     }
 
     func convertToOgg(input: URL, output: URL, completion: @escaping (Bool) -> Void) {
-        // Look for ffmpeg: bundled in .app first, then system paths
         let bundled = Bundle.main.resourceURL?.appendingPathComponent("ffmpeg").path
         let candidates = [bundled, "/opt/homebrew/bin/ffmpeg", "/usr/local/bin/ffmpeg"].compactMap { $0 }
         let ffmpeg = candidates.first { FileManager.default.isExecutableFile(atPath: $0) }
 
         guard let ffmpegPath = ffmpeg else {
-            log("⚠️ ffmpeg not found — sending m4a (install: brew install ffmpeg)")
+            log("⚠️ ffmpeg not found — sending m4a")
             completion(false)
             return
         }
@@ -503,49 +479,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             log("⚠️ ffmpeg error: \(error) — sending m4a")
             completion(false)
         }
-    }
-
-    // MARK: - Telegram API
-
-    func sendVoice(fileURL: URL, filename: String, mimeType: String, completion: @escaping (Bool) -> Void) {
-        let endpoint = URL(string: "https://api.telegram.org/bot\(config.botToken)/sendVoice")!
-        var request = URLRequest(url: endpoint)
-        request.httpMethod = "POST"
-
-        let boundary = UUID().uuidString
-        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
-
-        var body = Data()
-        body.append("--\(boundary)\r\n".data(using: .utf8)!)
-        body.append("Content-Disposition: form-data; name=\"chat_id\"\r\n\r\n".data(using: .utf8)!)
-        body.append("\(config.chatId)\r\n".data(using: .utf8)!)
-        body.append("--\(boundary)\r\n".data(using: .utf8)!)
-        body.append("Content-Disposition: form-data; name=\"voice\"; filename=\"\(filename)\"\r\n".data(using: .utf8)!)
-        body.append("Content-Type: \(mimeType)\r\n\r\n".data(using: .utf8)!)
-
-        do {
-            body.append(try Data(contentsOf: fileURL))
-        } catch {
-            log("❌ Read error: \(error)")
-            completion(false)
-            return
-        }
-
-        body.append("\r\n--\(boundary)--\r\n".data(using: .utf8)!)
-        request.httpBody = body
-
-        URLSession.shared.dataTask(with: request) { data, response, error in
-            if let error = error {
-                log("❌ Network: \(error)")
-                completion(false)
-                return
-            }
-            let ok = (response as? HTTPURLResponse)?.statusCode == 200
-            if !ok, let data = data, let text = String(data: data, encoding: .utf8) {
-                log("❌ API: \(text)")
-            }
-            completion(ok)
-        }.resume()
     }
 }
 

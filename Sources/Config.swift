@@ -5,52 +5,57 @@ enum RecordingMode: String, Codable {
     case pressToToggle = "toggle"
 }
 
-enum SendMode: String, Codable {
-    case botAPI = "bot"       // Send via Bot API (message appears from bot)
-    case userAPI = "user"     // Send via User API/TDLib (message appears from you)
-}
-
 struct Config: Codable {
-    var botToken: String
     var chatId: String
     var hotkeyKeyCode: UInt16
     var hotkeyModifiers: UInt
     var hotkeyDisplay: String
     var recordingMode: RecordingMode
     var launchAtLogin: Bool
-    var sendMode: SendMode
     var apiId: Int
     var apiHash: String
     var userLoggedIn: Bool
 
-    init(botToken: String, chatId: String, hotkeyKeyCode: UInt16, hotkeyModifiers: UInt,
+    init(chatId: String, hotkeyKeyCode: UInt16, hotkeyModifiers: UInt,
          hotkeyDisplay: String, recordingMode: RecordingMode, launchAtLogin: Bool,
-         sendMode: SendMode, apiId: Int, apiHash: String, userLoggedIn: Bool) {
-        self.botToken = botToken; self.chatId = chatId; self.hotkeyKeyCode = hotkeyKeyCode
+         apiId: Int, apiHash: String, userLoggedIn: Bool) {
+        self.chatId = chatId; self.hotkeyKeyCode = hotkeyKeyCode
         self.hotkeyModifiers = hotkeyModifiers; self.hotkeyDisplay = hotkeyDisplay
         self.recordingMode = recordingMode; self.launchAtLogin = launchAtLogin
-        self.sendMode = sendMode; self.apiId = apiId; self.apiHash = apiHash
-        self.userLoggedIn = userLoggedIn
+        self.apiId = apiId; self.apiHash = apiHash; self.userLoggedIn = userLoggedIn
     }
 
     enum CodingKeys: String, CodingKey {
-        case botToken, chatId, hotkeyKeyCode, hotkeyModifiers, hotkeyDisplay
-        case recordingMode, launchAtLogin, sendMode, apiId, apiHash, userLoggedIn
+        case chatId, hotkeyKeyCode, hotkeyModifiers, hotkeyDisplay
+        case recordingMode, launchAtLogin, apiId, apiHash, userLoggedIn
+        // Legacy keys we skip on read
+        case botToken, sendMode
     }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        botToken = try c.decode(String.self, forKey: .botToken)
-        chatId = try c.decode(String.self, forKey: .chatId)
-        hotkeyKeyCode = try c.decode(UInt16.self, forKey: .hotkeyKeyCode)
-        hotkeyModifiers = try c.decode(UInt.self, forKey: .hotkeyModifiers)
-        hotkeyDisplay = try c.decode(String.self, forKey: .hotkeyDisplay)
+        chatId = try c.decodeIfPresent(String.self, forKey: .chatId) ?? ""
+        hotkeyKeyCode = try c.decodeIfPresent(UInt16.self, forKey: .hotkeyKeyCode) ?? 0x60
+        hotkeyModifiers = try c.decodeIfPresent(UInt.self, forKey: .hotkeyModifiers) ?? 0
+        hotkeyDisplay = try c.decodeIfPresent(String.self, forKey: .hotkeyDisplay) ?? "F5"
         recordingMode = try c.decodeIfPresent(RecordingMode.self, forKey: .recordingMode) ?? .holdToRecord
         launchAtLogin = try c.decodeIfPresent(Bool.self, forKey: .launchAtLogin) ?? false
-        sendMode = try c.decodeIfPresent(SendMode.self, forKey: .sendMode) ?? .botAPI
         apiId = try c.decodeIfPresent(Int.self, forKey: .apiId) ?? 0
         apiHash = try c.decodeIfPresent(String.self, forKey: .apiHash) ?? ""
         userLoggedIn = try c.decodeIfPresent(Bool.self, forKey: .userLoggedIn) ?? false
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(chatId, forKey: .chatId)
+        try c.encode(hotkeyKeyCode, forKey: .hotkeyKeyCode)
+        try c.encode(hotkeyModifiers, forKey: .hotkeyModifiers)
+        try c.encode(hotkeyDisplay, forKey: .hotkeyDisplay)
+        try c.encode(recordingMode, forKey: .recordingMode)
+        try c.encode(launchAtLogin, forKey: .launchAtLogin)
+        try c.encode(apiId, forKey: .apiId)
+        try c.encode(apiHash, forKey: .apiHash)
+        try c.encode(userLoggedIn, forKey: .userLoggedIn)
     }
 
     static let configURL: URL = {
@@ -61,14 +66,12 @@ struct Config: Codable {
     }()
 
     static let `default` = Config(
-        botToken: "",
         chatId: "",
         hotkeyKeyCode: 0x60,
         hotkeyModifiers: 0,
         hotkeyDisplay: "F5",
         recordingMode: .holdToRecord,
         launchAtLogin: false,
-        sendMode: .botAPI,
         apiId: 0,
         apiHash: "",
         userLoggedIn: false
@@ -92,15 +95,11 @@ struct Config: Codable {
         }
     }
 
-    var isConfigured: Bool {
-        // Configured if we have a chat ID and at least one send method available
-        guard !chatId.isEmpty else { return false }
-        let hasBotAPI = !botToken.isEmpty
-        let hasUserAPI = apiId > 0 && !apiHash.isEmpty
-        return hasBotAPI || hasUserAPI
+    var hasCredentials: Bool {
+        apiId > 0 && !apiHash.isEmpty
     }
 
-    var isUserAPIReady: Bool {
-        sendMode == .userAPI && apiId > 0 && !apiHash.isEmpty && userLoggedIn
+    var isConfigured: Bool {
+        hasCredentials && !chatId.isEmpty && userLoggedIn
     }
 }

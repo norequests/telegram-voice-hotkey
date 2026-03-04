@@ -4,36 +4,26 @@ class SetupWindowController: NSWindowController, NSWindowDelegate {
     var onComplete: ((Config) -> Void)?
     var telegramClient: TelegramClient?
 
-    // Shared fields
+    // Fields
     private let chatIdField = NSTextField()
     private let hotkeyField = HotkeyRecorderView(frame: .zero)
     private let modePopup = NSPopUpButton()
     private let launchAtLoginCheck = NSButton(checkboxWithTitle: "Launch at login", target: nil, action: nil)
-    private let sendModePopup = NSPopUpButton()
-
-    // Bot API fields
-    private let botTokenField = NSTextField()
-    private let botTokenLabel = NSTextField(labelWithString: "Bot Token:")
 
     // User API fields
     private let apiIdField = NSTextField()
     private let apiHashField = NSTextField()
     private let phoneField = NSTextField()
     private let codeField = NSTextField()
-    private let apiIdLabel = NSTextField(labelWithString: "API ID:")
-    private let apiHashLabel = NSTextField(labelWithString: "API Hash:")
-    private let phoneLabel = NSTextField(labelWithString: "Phone:")
-    private let codeLabel = NSTextField(labelWithString: "Code:")
     private let loginButton = NSButton(title: "Send Code", target: nil, action: nil)
     private let loginStatus = NSTextField(labelWithString: "")
-    private let apiHelpLabel = NSTextField(labelWithString: "")
 
     private var contentView: NSView!
     private var existingConfig: Config = .default
 
     convenience init(existing: Config, onComplete: @escaping (Config) -> Void) {
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 520, height: 420),
+            contentRect: NSRect(x: 0, y: 0, width: 520, height: 400),
             styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false
@@ -46,70 +36,63 @@ class SetupWindowController: NSWindowController, NSWindowDelegate {
         self.existingConfig = existing
         window.delegate = self
 
+        // Edit menu for paste support
+        let mainMenu = NSMenu()
+        let editMenuItem = NSMenuItem()
+        editMenuItem.submenu = {
+            let m = NSMenu(title: "Edit")
+            m.addItem(withTitle: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
+            m.addItem(withTitle: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+            m.addItem(withTitle: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
+            m.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+            return m
+        }()
+        mainMenu.addItem(editMenuItem)
+        NSApp.mainMenu = mainMenu
+
         contentView = NSView(frame: window.contentView!.bounds)
         contentView.autoresizingMask = [.width, .height]
 
-        var y = 380
+        var y = 365
 
-        // Send Mode
-        let sendLabel = makeLabel("Send as:")
-        sendLabel.frame = NSRect(x: 20, y: y, width: 90, height: 20)
-        contentView.addSubview(sendLabel)
+        // ── Telegram API Credentials ──
+        let credHeader = makeLabel("Telegram API", bold: true, size: 14)
+        credHeader.frame = NSRect(x: 20, y: y, width: 200, height: 20)
+        contentView.addSubview(credHeader)
 
-        sendModePopup.frame = NSRect(x: 115, y: y - 2, width: 385, height: 24)
-        sendModePopup.addItems(withTitles: [
-            "Bot API (message appears from your bot)",
-            "User API (message appears from you)"
-        ])
-        sendModePopup.selectItem(at: existing.sendMode == .userAPI ? 1 : 0)
-        sendModePopup.target = self
-        sendModePopup.action = #selector(sendModeChanged)
-        contentView.addSubview(sendModePopup)
-        y -= 35
+        let helpLabel = makeLabel("Get from my.telegram.org → API Development Tools")
+        helpLabel.frame = NSRect(x: 180, y: y + 1, width: 350, height: 16)
+        helpLabel.font = .systemFont(ofSize: 10)
+        helpLabel.textColor = .secondaryLabelColor
+        contentView.addSubview(helpLabel)
+        y -= 30
 
-        // ── Bot API fields ──
-        botTokenLabel.frame = NSRect(x: 20, y: y, width: 90, height: 20)
-        contentView.addSubview(botTokenLabel)
-
-        botTokenField.frame = NSRect(x: 115, y: y - 2, width: 385, height: 24)
-        botTokenField.placeholderString = "123456:ABC-DEF..."
-        botTokenField.stringValue = existing.botToken
-        botTokenField.font = .monospacedSystemFont(ofSize: 12, weight: .regular)
-        botTokenField.usesSingleLineMode = true
-        botTokenField.cell?.isScrollable = true
-        contentView.addSubview(botTokenField)
-
-        // ── User API fields ──
+        let apiIdLabel = makeLabel("API ID:")
         apiIdLabel.frame = NSRect(x: 20, y: y, width: 90, height: 20)
         contentView.addSubview(apiIdLabel)
 
         apiIdField.frame = NSRect(x: 115, y: y - 2, width: 385, height: 24)
-        apiIdField.placeholderString = "From my.telegram.org"
+        apiIdField.placeholderString = "12345678"
         apiIdField.stringValue = existing.apiId > 0 ? String(existing.apiId) : ""
         apiIdField.font = .monospacedSystemFont(ofSize: 12, weight: .regular)
         contentView.addSubview(apiIdField)
-        y -= 35
+        y -= 30
 
+        let apiHashLabel = makeLabel("API Hash:")
         apiHashLabel.frame = NSRect(x: 20, y: y, width: 90, height: 20)
         contentView.addSubview(apiHashLabel)
 
         apiHashField.frame = NSRect(x: 115, y: y - 2, width: 385, height: 24)
-        apiHashField.placeholderString = "From my.telegram.org"
+        apiHashField.placeholderString = "abc123def456..."
         apiHashField.stringValue = existing.apiHash
         apiHashField.font = .monospacedSystemFont(ofSize: 12, weight: .regular)
         apiHashField.usesSingleLineMode = true
         apiHashField.cell?.isScrollable = true
         contentView.addSubview(apiHashField)
-
-        apiHelpLabel.frame = NSRect(x: 115, y: y - 20, width: 385, height: 16)
-        apiHelpLabel.font = .systemFont(ofSize: 10)
-        apiHelpLabel.textColor = .secondaryLabelColor
-        apiHelpLabel.stringValue = "Get credentials at my.telegram.org → API Development Tools"
-        contentView.addSubview(apiHelpLabel)
         y -= 35
 
+        // ── Login ──
         if existing.userLoggedIn {
-            // Already authenticated — show status instead of login fields
             loginStatus.frame = NSRect(x: 115, y: y, width: 300, height: 20)
             loginStatus.stringValue = "✅ Telegram authenticated"
             loginStatus.font = .systemFont(ofSize: 13)
@@ -123,14 +106,11 @@ class SetupWindowController: NSWindowController, NSWindowDelegate {
             loginButton.action = #selector(startReauth)
             contentView.addSubview(loginButton)
 
-            // Hide login fields
-            phoneLabel.isHidden = true
             phoneField.isHidden = true
-            codeLabel.isHidden = true
             codeField.isHidden = true
-            y -= 40
+            y -= 35
         } else {
-            // Not authenticated — show login flow
+            let phoneLabel = makeLabel("Phone:")
             phoneLabel.frame = NSRect(x: 20, y: y, width: 90, height: 20)
             contentView.addSubview(phoneLabel)
 
@@ -144,8 +124,9 @@ class SetupWindowController: NSWindowController, NSWindowDelegate {
             loginButton.target = self
             loginButton.action = #selector(handleLogin)
             contentView.addSubview(loginButton)
-            y -= 35
+            y -= 30
 
+            let codeLabel = makeLabel("Code:")
             codeLabel.frame = NSRect(x: 20, y: y, width: 90, height: 20)
             contentView.addSubview(codeLabel)
 
@@ -158,16 +139,22 @@ class SetupWindowController: NSWindowController, NSWindowDelegate {
             loginStatus.font = .systemFont(ofSize: 11)
             loginStatus.textColor = .secondaryLabelColor
             contentView.addSubview(loginStatus)
-            y -= 40
+            y -= 35
         }
 
-        // ── Shared fields ──
+        // ── Chat ID ──
+        let divider1 = NSBox()
+        divider1.boxType = .separator
+        divider1.frame = NSRect(x: 20, y: y + 5, width: 480, height: 1)
+        contentView.addSubview(divider1)
+        y -= 5
+
         let chatLabel = makeLabel("Chat ID:")
         chatLabel.frame = NSRect(x: 20, y: y, width: 90, height: 20)
         contentView.addSubview(chatLabel)
 
         chatIdField.frame = NSRect(x: 115, y: y - 2, width: 385, height: 24)
-        chatIdField.placeholderString = "Chat ID (your bot's chat or any chat)"
+        chatIdField.placeholderString = "Target chat ID (numeric)"
         chatIdField.stringValue = existing.chatId
         chatIdField.font = .monospacedSystemFont(ofSize: 12, weight: .regular)
         chatIdField.usesSingleLineMode = true
@@ -175,6 +162,7 @@ class SetupWindowController: NSWindowController, NSWindowDelegate {
         contentView.addSubview(chatIdField)
         y -= 35
 
+        // ── Hotkey ──
         let hotkeyLabel = makeLabel("Hotkey:")
         hotkeyLabel.frame = NSRect(x: 20, y: y, width: 90, height: 20)
         contentView.addSubview(hotkeyLabel)
@@ -216,36 +204,9 @@ class SetupWindowController: NSWindowController, NSWindowDelegate {
         contentView.addSubview(saveButton)
 
         window.contentView = contentView
-        updateFieldVisibility()
-    }
-
-    @objc func sendModeChanged() {
-        updateFieldVisibility()
-    }
-
-    func updateFieldVisibility() {
-        let isUserMode = sendModePopup.indexOfSelectedItem == 1
-
-        // Bot API fields
-        botTokenLabel.isHidden = isUserMode
-        botTokenField.isHidden = isUserMode
-
-        // User API fields
-        apiIdLabel.isHidden = !isUserMode
-        apiIdField.isHidden = !isUserMode
-        apiHashLabel.isHidden = !isUserMode
-        apiHashField.isHidden = !isUserMode
-        apiHelpLabel.isHidden = !isUserMode
-        phoneLabel.isHidden = !isUserMode
-        phoneField.isHidden = !isUserMode
-        codeLabel.isHidden = !isUserMode
-        codeField.isHidden = !isUserMode
-        loginButton.isHidden = !isUserMode
-        loginStatus.isHidden = !isUserMode
     }
 
     @objc func startReauth() {
-        // Clear TDLib session data to force re-login
         let tdlibDir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
             .appendingPathComponent("TelegramVoiceHotkey/tdlib")
         try? FileManager.default.removeItem(at: tdlibDir)
@@ -253,40 +214,44 @@ class SetupWindowController: NSWindowController, NSWindowDelegate {
         existingConfig.userLoggedIn = false
         existingConfig.save()
 
-        // Show login fields
-        phoneLabel.isHidden = false
-        phoneField.isHidden = false
-        codeLabel.isHidden = false
-        codeField.isHidden = false
         loginStatus.stringValue = "Enter phone to re-authenticate"
         loginStatus.textColor = .secondaryLabelColor
         loginButton.title = "Send Code"
         loginButton.action = #selector(handleLogin)
         loginButton.isEnabled = true
+        phoneField.isHidden = false
+        codeField.isHidden = false
         telegramClient = nil
     }
 
     @objc func handleLogin() {
         guard let apiId = Int(apiIdField.stringValue.trimmingCharacters(in: .whitespaces)),
               apiId > 0 else {
-            showAlert("Invalid API ID")
+            showAlert("Invalid API ID — get one from my.telegram.org")
             return
         }
 
         let apiHash = apiHashField.stringValue.trimmingCharacters(in: .whitespaces)
         guard !apiHash.isEmpty else {
-            showAlert("API Hash is required")
+            showAlert("API Hash is required — get it from my.telegram.org")
+            return
+        }
+
+        guard TelegramClient.isAvailable else {
+            showAlert("TDLib not found. Run scripts/setup-tdlib.sh to build it, then rebuild the app.")
             return
         }
 
         if telegramClient == nil {
             telegramClient = TelegramClient(apiId: apiId, apiHash: apiHash)
             telegramClient?.onAuthStateChanged = { [weak self] state in
-                self?.handleAuthState(state)
+                DispatchQueue.main.async { self?.handleAuthState(state) }
             }
             telegramClient?.onError = { [weak self] msg in
-                self?.loginStatus.stringValue = "❌ \(msg)"
-                self?.loginStatus.textColor = .systemRed
+                DispatchQueue.main.async {
+                    self?.loginStatus.stringValue = "❌ \(msg)"
+                    self?.loginStatus.textColor = .systemRed
+                }
             }
             telegramClient?.start()
         }
@@ -338,6 +303,18 @@ class SetupWindowController: NSWindowController, NSWindowDelegate {
     }
 
     @objc func saveConfig() {
+        guard let apiId = Int(apiIdField.stringValue.trimmingCharacters(in: .whitespaces)),
+              apiId > 0 else {
+            showAlert("Valid API ID required — get one from my.telegram.org")
+            return
+        }
+
+        let apiHash = apiHashField.stringValue.trimmingCharacters(in: .whitespaces)
+        guard !apiHash.isEmpty else {
+            showAlert("API Hash required — get it from my.telegram.org")
+            return
+        }
+
         let chatId = chatIdField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !chatId.isEmpty else {
             showAlert("Chat ID is required")
@@ -349,60 +326,23 @@ class SetupWindowController: NSWindowController, NSWindowDelegate {
             return
         }
 
-        let isUserMode = sendModePopup.indexOfSelectedItem == 1
         let mode: RecordingMode = modePopup.indexOfSelectedItem == 1 ? .pressToToggle : .holdToRecord
         let launchAtLogin = launchAtLoginCheck.state == .on
+        let loggedIn = telegramClient?.isLoggedIn ?? existingConfig.userLoggedIn
 
-        if isUserMode {
-            guard let apiId = Int(apiIdField.stringValue.trimmingCharacters(in: .whitespaces)), apiId > 0 else {
-                showAlert("Valid API ID required for User API mode")
-                return
-            }
-            let apiHash = apiHashField.stringValue.trimmingCharacters(in: .whitespaces)
-            guard !apiHash.isEmpty else {
-                showAlert("API Hash required for User API mode")
-                return
-            }
-            let loggedIn = telegramClient?.isLoggedIn ?? existingConfig.userLoggedIn
-
-            let config = Config(
-                botToken: botTokenField.stringValue.trimmingCharacters(in: .whitespaces),
-                chatId: chatId,
-                hotkeyKeyCode: recorded.keyCode,
-                hotkeyModifiers: recorded.modifiers,
-                hotkeyDisplay: recorded.displayString,
-                recordingMode: mode,
-                launchAtLogin: launchAtLogin,
-                sendMode: .userAPI,
-                apiId: apiId,
-                apiHash: apiHash,
-                userLoggedIn: loggedIn
-            )
-            config.save()
-            onComplete?(config)
-        } else {
-            let token = botTokenField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !token.isEmpty else {
-                showAlert("Bot token required for Bot API mode")
-                return
-            }
-
-            let config = Config(
-                botToken: token,
-                chatId: chatId,
-                hotkeyKeyCode: recorded.keyCode,
-                hotkeyModifiers: recorded.modifiers,
-                hotkeyDisplay: recorded.displayString,
-                recordingMode: mode,
-                launchAtLogin: launchAtLogin,
-                sendMode: .botAPI,
-                apiId: 0,
-                apiHash: "",
-                userLoggedIn: false
-            )
-            config.save()
-            onComplete?(config)
-        }
+        let config = Config(
+            chatId: chatId,
+            hotkeyKeyCode: recorded.keyCode,
+            hotkeyModifiers: recorded.modifiers,
+            hotkeyDisplay: recorded.displayString,
+            recordingMode: mode,
+            launchAtLogin: launchAtLogin,
+            apiId: apiId,
+            apiHash: apiHash,
+            userLoggedIn: loggedIn
+        )
+        config.save()
+        onComplete?(config)
         close()
     }
 
