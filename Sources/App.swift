@@ -284,6 +284,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     self?.config.userLoggedIn = false
                     self?.config.save()
                     self?.buildMenu()
+                    self?.showSetup()
                 }
             }
         }
