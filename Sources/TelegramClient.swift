@@ -257,14 +257,26 @@ class TelegramClient {
         running = false
         log("🔒 Closing TDLib client \(clientId)...")
 
+        // Guard against double-completion (close response + fallback timer)
+        var completionCalled = false
+        let safeComplete = {
+            DispatchQueue.main.async {
+                guard !completionCalled else { return }
+                completionCalled = true
+                completion?()
+            }
+        }
+
         // Register callback for authorizationStateClosed
         let extra = "close_\(clientId)"
         pendingCallbacks[extra] = { [weak self] _ in
             if let self = self {
+                TelegramClient.clientsLock.lock()
                 TelegramClient.clients.removeValue(forKey: self.clientId)
+                TelegramClient.clientsLock.unlock()
             }
             log("🔒 TDLib client closed")
-            DispatchQueue.main.async { completion?() }
+            safeComplete()
         }
 
         send(["@type": "close", "@extra": extra])
@@ -272,9 +284,11 @@ class TelegramClient {
         // Fallback: if close doesn't respond in 3s, force cleanup
         DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { [weak self] in
             if let self = self {
+                TelegramClient.clientsLock.lock()
                 TelegramClient.clients.removeValue(forKey: self.clientId)
+                TelegramClient.clientsLock.unlock()
             }
-            completion?()
+            safeComplete()
         }
     }
 
