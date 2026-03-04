@@ -104,7 +104,25 @@ class WhisperTranscriber {
             process.waitUntilExit()
 
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let rawOutput = String(data: data, encoding: .utf8) ?? ""
+            log("📝 Whisper raw output (\(rawOutput.count) chars): [\(rawOutput.prefix(200))]")
+
+            // Strip whisper header lines and timestamp brackets, keep only text
+            let lines = rawOutput.components(separatedBy: .newlines)
+            let textLines = lines.compactMap { line -> String? in
+                let trimmed = line.trimmingCharacters(in: .whitespaces)
+                // Skip empty lines and whisper header/info lines
+                if trimmed.isEmpty { return nil }
+                if trimmed.hasPrefix("whisper_") { return nil }
+                if trimmed.hasPrefix("system_info") { return nil }
+                // Remove timestamp brackets like [00:00:00.000 --> 00:00:02.000]
+                if let range = trimmed.range(of: "\\[\\d{2}:\\d{2}:\\d{2}\\.\\d{3}\\s*-->\\s*\\d{2}:\\d{2}:\\d{2}\\.\\d{3}\\]\\s*", options: .regularExpression) {
+                    let text = String(trimmed[range.upperBound...]).trimmingCharacters(in: .whitespaces)
+                    return text.isEmpty ? nil : text
+                }
+                return trimmed
+            }
+            let output = textLines.joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines)
 
             // Clean up temp WAV
             try? FileManager.default.removeItem(atPath: wavPath)
