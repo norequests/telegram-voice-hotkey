@@ -12,6 +12,8 @@ class SetupWindowController: NSWindowController, NSWindowDelegate {
     private let transcriptionPopup = NSPopUpButton()
     private let geminiKeyField = NSTextField()
     private var geminiLabel: NSTextField?
+    private let downloadModelButton = NSButton(title: "Download Model (~460MB)", target: nil, action: nil)
+    private let modelStatusLabel = NSTextField(labelWithString: "")
     private let launchAtLoginCheck = NSButton(checkboxWithTitle: "Launch at login", target: nil, action: nil)
     private var loginRowY: Int = 0
 
@@ -253,6 +255,20 @@ class SetupWindowController: NSWindowController, NSWindowDelegate {
         geminiKeyField.isHidden = existing.transcriptionMode != "gemini"
         contentView.addSubview(geminiKeyField)
         geminiLabel.isHidden = existing.transcriptionMode != "gemini"
+
+        // Download model button (for local mode)
+        downloadModelButton.frame = NSRect(x: 115, y: y - 2, width: 200, height: 24)
+        downloadModelButton.bezelStyle = .rounded
+        downloadModelButton.target = self
+        downloadModelButton.action = #selector(downloadWhisperModel)
+        contentView.addSubview(downloadModelButton)
+
+        modelStatusLabel.frame = NSRect(x: 320, y: y, width: 180, height: 16)
+        modelStatusLabel.font = .systemFont(ofSize: 10)
+        modelStatusLabel.textColor = .secondaryLabelColor
+        contentView.addSubview(modelStatusLabel)
+
+        updateTranscriptionUI(mode: existing.transcriptionMode)
         y -= 30
 
         launchAtLoginCheck.frame = NSRect(x: 115, y: y, width: 380, height: 20)
@@ -270,9 +286,98 @@ class SetupWindowController: NSWindowController, NSWindowDelegate {
     }
 
     @objc func transcriptionModeChanged() {
-        let isGemini = transcriptionPopup.indexOfSelectedItem == 1
+        let mode = transcriptionPopup.indexOfSelectedItem == 1 ? "gemini" : "local"
+        updateTranscriptionUI(mode: mode)
+    }
+
+    private func updateTranscriptionUI(mode: String) {
+        let isGemini = mode == "gemini"
         geminiKeyField.isHidden = !isGemini
         geminiLabel?.isHidden = !isGemini
+
+        if isGemini {
+            downloadModelButton.isHidden = true
+            modelStatusLabel.isHidden = true
+        } else {
+            let hasModel = whisperModelExists()
+            downloadModelButton.isHidden = hasModel
+            modelStatusLabel.isHidden = false
+            if hasModel {
+                let modelName = whisperModelName()
+                modelStatusLabel.stringValue = "✅ \(modelName) installed"
+                modelStatusLabel.textColor = .systemGreen
+            } else {
+                modelStatusLabel.stringValue = "No model found"
+                modelStatusLabel.textColor = .systemOrange
+            }
+        }
+    }
+
+    private func whisperModelDir() -> URL {
+        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+            .appendingPathComponent("TelegramVoiceHotkey/models")
+    }
+
+    private func whisperModelExists() -> Bool {
+        let dir = whisperModelDir().path
+        for name in ["ggml-small.en.bin", "ggml-base.en.bin"] {
+            if FileManager.default.fileExists(atPath: "\(dir)/\(name)") { return true }
+        }
+        return false
+    }
+
+    private func whisperModelName() -> String {
+        let dir = whisperModelDir().path
+        if FileManager.default.fileExists(atPath: "\(dir)/ggml-small.en.bin") { return "small.en" }
+        if FileManager.default.fileExists(atPath: "\(dir)/ggml-base.en.bin") { return "base.en" }
+        return "none"
+    }
+
+    @objc func downloadWhisperModel() {
+        downloadModelButton.isEnabled = false
+        downloadModelButton.title = "Downloading..."
+        modelStatusLabel.stringValue = "⏳ Downloading small.en..."
+        modelStatusLabel.textColor = .secondaryLabelColor
+
+        let modelDir = whisperModelDir()
+        try? FileManager.default.createDirectory(at: modelDir, withIntermediateDirectories: true)
+        let destPath = modelDir.appendingPathComponent("ggml-small.en.bin")
+
+        let url = URL(string: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.en.bin")!
+
+        let task = URLSession.shared.downloadTask(with: url) { [weak self] tempURL, response, error in
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+                if let error = error {
+                    self.modelStatusLabel.stringValue = "❌ \(error.localizedDescription)"
+                    self.modelStatusLabel.textColor = .systemRed
+                    self.downloadModelButton.isEnabled = true
+                    self.downloadModelButton.title = "Retry Download"
+                    return
+                }
+                guard let tempURL = tempURL else {
+                    self.modelStatusLabel.stringValue = "❌ Download failed"
+                    self.modelStatusLabel.textColor = .systemRed
+                    self.downloadModelButton.isEnabled = true
+                    self.downloadModelButton.title = "Retry Download"
+                    return
+                }
+                do {
+                    try? FileManager.default.removeItem(at: destPath)
+                    try FileManager.default.moveItem(at: tempURL, to: destPath)
+                    self.modelStatusLabel.stringValue = "✅ small.en installed"
+                    self.modelStatusLabel.textColor = .systemGreen
+                    self.downloadModelButton.isHidden = true
+                    log("📥 Whisper small.en model downloaded")
+                } catch {
+                    self.modelStatusLabel.stringValue = "❌ \(error.localizedDescription)"
+                    self.modelStatusLabel.textColor = .systemRed
+                    self.downloadModelButton.isEnabled = true
+                    self.downloadModelButton.title = "Retry Download"
+                }
+            }
+        }
+        task.resume()
     }
 
     @objc func startReauth() {
