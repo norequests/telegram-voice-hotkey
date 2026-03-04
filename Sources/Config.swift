@@ -15,19 +15,29 @@ struct Config: Codable {
     var apiId: Int
     var apiHash: String
     var userLoggedIn: Bool
+    // Screenshot+voice combo hotkey
+    var screenshotHotkeyKeyCode: UInt16
+    var screenshotHotkeyModifiers: UInt
+    var screenshotHotkeyDisplay: String
 
     init(chatId: String, hotkeyKeyCode: UInt16, hotkeyModifiers: UInt,
          hotkeyDisplay: String, recordingMode: RecordingMode, launchAtLogin: Bool,
-         apiId: Int, apiHash: String, userLoggedIn: Bool) {
+         apiId: Int, apiHash: String, userLoggedIn: Bool,
+         screenshotHotkeyKeyCode: UInt16 = 0, screenshotHotkeyModifiers: UInt = 0,
+         screenshotHotkeyDisplay: String = "") {
         self.chatId = chatId; self.hotkeyKeyCode = hotkeyKeyCode
         self.hotkeyModifiers = hotkeyModifiers; self.hotkeyDisplay = hotkeyDisplay
         self.recordingMode = recordingMode; self.launchAtLogin = launchAtLogin
         self.apiId = apiId; self.apiHash = apiHash; self.userLoggedIn = userLoggedIn
+        self.screenshotHotkeyKeyCode = screenshotHotkeyKeyCode
+        self.screenshotHotkeyModifiers = screenshotHotkeyModifiers
+        self.screenshotHotkeyDisplay = screenshotHotkeyDisplay
     }
 
     enum CodingKeys: String, CodingKey {
         case chatId, hotkeyKeyCode, hotkeyModifiers, hotkeyDisplay
         case recordingMode, launchAtLogin, apiId, apiHash, userLoggedIn
+        case screenshotHotkeyKeyCode, screenshotHotkeyModifiers, screenshotHotkeyDisplay
         // Legacy keys we skip on read
         case botToken, sendMode
     }
@@ -43,6 +53,9 @@ struct Config: Codable {
         apiId = try c.decodeIfPresent(Int.self, forKey: .apiId) ?? 0
         apiHash = try c.decodeIfPresent(String.self, forKey: .apiHash) ?? ""
         userLoggedIn = try c.decodeIfPresent(Bool.self, forKey: .userLoggedIn) ?? false
+        screenshotHotkeyKeyCode = try c.decodeIfPresent(UInt16.self, forKey: .screenshotHotkeyKeyCode) ?? 0
+        screenshotHotkeyModifiers = try c.decodeIfPresent(UInt.self, forKey: .screenshotHotkeyModifiers) ?? 0
+        screenshotHotkeyDisplay = try c.decodeIfPresent(String.self, forKey: .screenshotHotkeyDisplay) ?? ""
     }
 
     func encode(to encoder: Encoder) throws {
@@ -56,6 +69,9 @@ struct Config: Codable {
         try c.encode(apiId, forKey: .apiId)
         try c.encode(apiHash, forKey: .apiHash)
         try c.encode(userLoggedIn, forKey: .userLoggedIn)
+        try c.encode(screenshotHotkeyKeyCode, forKey: .screenshotHotkeyKeyCode)
+        try c.encode(screenshotHotkeyModifiers, forKey: .screenshotHotkeyModifiers)
+        try c.encode(screenshotHotkeyDisplay, forKey: .screenshotHotkeyDisplay)
     }
 
     static let configURL: URL = {
@@ -101,5 +117,9 @@ struct Config: Codable {
 
     var isConfigured: Bool {
         hasCredentials && !chatId.isEmpty && userLoggedIn
+    }
+
+    var hasScreenshotHotkey: Bool {
+        screenshotHotkeyKeyCode > 0 && !screenshotHotkeyDisplay.isEmpty
     }
 }

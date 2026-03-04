@@ -191,6 +191,55 @@ class TelegramClient {
         ])
     }
 
+    /// Send a photo with an optional text caption
+    func sendPhoto(chatId: Int64, photoPath: String, caption: String?, completion: @escaping (Bool) -> Void) {
+        let chatExtra = "create_chat_photo_\(chatId)"
+        let sendExtra = UUID().uuidString
+
+        pendingCallbacks[chatExtra] = { [weak self] response in
+            guard let self = self else { return }
+            let type = response["@type"] as? String ?? ""
+            var tdChatId = chatId
+            if type == "chat", let cid = response["id"] as? Int64 {
+                tdChatId = cid
+            }
+
+            var content: [String: Any] = [
+                "@type": "inputMessagePhoto",
+                "photo": [
+                    "@type": "inputFileLocal",
+                    "path": photoPath,
+                ],
+            ]
+            if let caption = caption, !caption.isEmpty {
+                content["caption"] = [
+                    "@type": "formattedText",
+                    "text": caption,
+                ]
+            }
+
+            self.send([
+                "@type": "sendMessage",
+                "@extra": sendExtra,
+                "chat_id": tdChatId,
+                "input_message_content": content,
+            ])
+        }
+
+        pendingCallbacks[sendExtra] = { response in
+            let type = response["@type"] as? String ?? ""
+            let ok = type == "message"
+            DispatchQueue.main.async { completion(ok) }
+        }
+
+        send([
+            "@type": "createPrivateChat",
+            "@extra": chatExtra,
+            "user_id": chatId,
+            "force": false,
+        ])
+    }
+
     private var pendingCallbacks: [String: ([String: Any]) -> Void] = [:]
 
     var isLoggedIn: Bool { authState == .ready }

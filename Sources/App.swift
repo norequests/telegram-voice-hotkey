@@ -36,6 +36,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     var _targetKeyCode: CGKeyCode = 0
     var _targetModifiers: UInt = 0
     var _mode: RecordingMode = .holdToRecord
+    // Screenshot combo
+    var _screenshotKeyCode: CGKeyCode = 0
+    var _screenshotModifiers: UInt = 0
+    var screenshotPath: String?
+    var isScreenshotMode = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -261,6 +266,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         self._targetKeyCode = CGKeyCode(config.hotkeyKeyCode)
         self._targetModifiers = config.hotkeyModifiers
         self._mode = config.recordingMode
+        if config.hasScreenshotHotkey {
+            self._screenshotKeyCode = CGKeyCode(config.screenshotHotkeyKeyCode)
+            self._screenshotModifiers = config.screenshotHotkeyModifiers
+            log("📸 Screenshot hotkey: \(config.screenshotHotkeyDisplay)")
+        }
 
         let runLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
         CFRunLoopAddSource(CFRunLoopGetCurrent(), runLoopSource, .commonModes)
@@ -290,20 +300,38 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         let hotkeyMatch = keyCode == _targetKeyCode && currentMods == targetMods
 
+        // Screenshot combo hotkey
+        let screenshotTargetMods = CGEventFlags(rawValue: UInt64(
+            NSEvent.ModifierFlags(rawValue: _screenshotModifiers)
+                .intersection(.deviceIndependentFlagsMask).rawValue
+        ))
+        let screenshotMatch = _screenshotKeyCode > 0 && keyCode == _screenshotKeyCode && currentMods == screenshotTargetMods
+
+        // Handle screenshot combo (always hold-to-record style)
+        if type == .keyDown && screenshotMatch && !isRepeat && !isRecording {
+            DispatchQueue.main.async { self.startScreenshotRecording() }
+            return nil
+        }
+        if type == .keyUp && keyCode == _screenshotKeyCode && isRecording && isScreenshotMode {
+            DispatchQueue.main.async { self.stopAndSendScreenshot() }
+            return nil
+        }
+
+        // Regular voice hotkey
         switch _mode {
         case .holdToRecord:
             if type == .keyDown && hotkeyMatch && !isRepeat {
                 DispatchQueue.main.async { self.startRecording() }
                 return nil
             }
-            if type == .keyUp && keyCode == _targetKeyCode && isRecording {
+            if type == .keyUp && keyCode == _targetKeyCode && isRecording && !isScreenshotMode {
                 DispatchQueue.main.async { self.stopAndSend() }
                 return nil
             }
 
         case .pressToToggle:
             if type == .keyDown {
-                if isRecording {
+                if isRecording && !isScreenshotMode {
                     DispatchQueue.main.async { self.stopAndSend() }
                     return nil
                 } else if hotkeyMatch && !isRepeat {
@@ -392,6 +420,97 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             log("❌ AVAudioRecorder init failed: \(error)")
             isRecording = false
             updateIcon(recording: false)
+        }
+    }
+
+    // MARK: - Screenshot + Voice Combo
+
+    func startScreenshotRecording() {
+        guard !isRecording, config.isConfigured else {
+            log("⚠️ startScreenshotRecording skipped")
+            return
+        }
+
+        // Capture screenshot first
+        ScreenCapture.captureScreen { [weak self] path in
+            guard let self = self, let path = path else {
+                log("❌ Screenshot capture failed — aborting")
+                return
+            }
+            self.screenshotPath = path
+            self.isScreenshotMode = true
+            // Now start recording voice
+            self.startRecording()
+        }
+    }
+
+    func stopAndSendScreenshot() {
+        guard isRecording, isScreenshotMode else { return }
+        isRecording = false
+        isScreenshotMode = false
+        updateIcon(recording: false)
+
+        guard let rec = recorder else {
+            log("⬛ No recorder to stop")
+            return
+        }
+
+        let duration = rec.currentTime
+        rec.stop()
+        recorder = nil
+
+        guard let audioURL = tempURL else {
+            log("⬛ No temp URL")
+            return
+        }
+
+        guard let ssPath = screenshotPath else {
+            log("❌ No screenshot — falling back to voice only")
+            // Fall back to regular send
+            isScreenshotMode = false
+            stopAndSend()
+            return
+        }
+
+        log("⬛ Screenshot+voice stopped — duration: \(String(format: "%.1f", duration))s")
+
+        guard let client = telegramClient, client.isLoggedIn else {
+            log("❌ TDLib not connected — can't send")
+            return
+        }
+
+        let chatId = Int64(config.chatId) ?? 0
+
+        if duration < 0.5 {
+            // Too short to transcribe — send screenshot without caption
+            log("⏭ Voice too short, sending screenshot only")
+            client.sendPhoto(chatId: chatId, photoPath: ssPath, caption: nil) { sent in
+                try? FileManager.default.removeItem(atPath: ssPath)
+                try? FileManager.default.removeItem(at: audioURL)
+                log(sent ? "✅ Sent screenshot" : "❌ Screenshot send failed")
+            }
+            return
+        }
+
+        // Transcribe voice locally, then send screenshot with caption
+        log("📝 Transcribing voice locally...")
+        WhisperTranscriber.transcribe(audioPath: audioURL.path) { [weak self] transcript in
+            guard let self = self else { return }
+
+            let caption = transcript ?? "[voice note attached]"
+            log("📸 Sending screenshot + caption: \(caption.prefix(80))...")
+
+            client.sendPhoto(chatId: chatId, photoPath: ssPath, caption: caption) { sent in
+                try? FileManager.default.removeItem(atPath: ssPath)
+                try? FileManager.default.removeItem(at: audioURL)
+                log(sent ? "✅ Sent screenshot + voice" : "❌ Send failed")
+            }
+
+            // Also send the voice note as a reply for the AI to hear the original audio
+            let oggURL = audioURL.deletingPathExtension().appendingPathExtension("ogg")
+            self.convertToOgg(input: audioURL, output: oggURL) { _ in
+                // Voice note sent separately so OpenClaw gets both
+            }
         }
     }
 

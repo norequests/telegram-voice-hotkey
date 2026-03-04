@@ -7,6 +7,7 @@ class SetupWindowController: NSWindowController, NSWindowDelegate {
     // Fields
     private let chatIdField = NSTextField()
     private let hotkeyField = HotkeyRecorderView(frame: .zero)
+    private let screenshotHotkeyField = HotkeyRecorderView(frame: .zero)
     private let modePopup = NSPopUpButton()
     private let launchAtLoginCheck = NSButton(checkboxWithTitle: "Launch at login", target: nil, action: nil)
 
@@ -23,7 +24,7 @@ class SetupWindowController: NSWindowController, NSWindowDelegate {
 
     convenience init(existing: Config, existingClient: TelegramClient? = nil, onComplete: @escaping (Config) -> Void) {
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 520, height: 400),
+            contentRect: NSRect(x: 0, y: 0, width: 520, height: 440),
             styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false
@@ -54,7 +55,7 @@ class SetupWindowController: NSWindowController, NSWindowDelegate {
         contentView = NSView(frame: window.contentView!.bounds)
         contentView.autoresizingMask = [.width, .height]
 
-        var y = 365
+        var y = 405
 
         // ── Telegram API Credentials ──
         let credHeader = makeLabel("Telegram API", bold: true, size: 14)
@@ -178,6 +179,28 @@ class SetupWindowController: NSWindowController, NSWindowDelegate {
             )
         }
         contentView.addSubview(hotkeyField)
+        y -= 30
+
+        let ssHotkeyLabel = makeLabel("Screenshot:")
+        ssHotkeyLabel.frame = NSRect(x: 20, y: y, width: 90, height: 20)
+        contentView.addSubview(ssHotkeyLabel)
+
+        screenshotHotkeyField.frame = NSRect(x: 115, y: y - 4, width: 200, height: 28)
+        if !existing.screenshotHotkeyDisplay.isEmpty {
+            screenshotHotkeyField.title = existing.screenshotHotkeyDisplay
+            screenshotHotkeyField.recordedHotkey = HotkeyRecorderView.RecordedHotkey(
+                keyCode: existing.screenshotHotkeyKeyCode,
+                modifiers: existing.screenshotHotkeyModifiers,
+                displayString: existing.screenshotHotkeyDisplay
+            )
+        }
+        contentView.addSubview(screenshotHotkeyField)
+
+        let ssHelp = makeLabel("Hold to screenshot + record voice")
+        ssHelp.frame = NSRect(x: 320, y: y - 2, width: 200, height: 16)
+        ssHelp.font = .systemFont(ofSize: 10)
+        ssHelp.textColor = .secondaryLabelColor
+        contentView.addSubview(ssHelp)
         y -= 35
 
         let modeLabel = makeLabel("Mode:")
@@ -341,7 +364,10 @@ class SetupWindowController: NSWindowController, NSWindowDelegate {
             launchAtLogin: launchAtLogin,
             apiId: apiId,
             apiHash: apiHash,
-            userLoggedIn: loggedIn
+            userLoggedIn: loggedIn,
+            screenshotHotkeyKeyCode: screenshotHotkeyField.recordedHotkey?.keyCode ?? 0,
+            screenshotHotkeyModifiers: screenshotHotkeyField.recordedHotkey?.modifiers ?? 0,
+            screenshotHotkeyDisplay: screenshotHotkeyField.recordedHotkey?.displayString ?? ""
         )
         config.save()
         onComplete?(config)
