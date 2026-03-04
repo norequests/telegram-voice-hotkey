@@ -64,9 +64,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             startTelegramClient()
             tryStartListening()
         } else if config.hasCredentials {
-            // Has API creds but not logged in yet — start TDLib for login, show setup
-            startTelegramClient()
-            showSetup()
+            // Has API creds but not logged in yet — start TDLib and check if already authed
+            startTelegramClientWithAutoRecovery()
         } else {
             showSetup()
         }
@@ -202,6 +201,53 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     // MARK: - TDLib
+
+    /// Start TDLib and auto-recover if already authenticated (e.g. after permission restart)
+    func startTelegramClientWithAutoRecovery() {
+        guard config.apiId > 0, !config.apiHash.isEmpty else {
+            showSetup()
+            return
+        }
+        guard TelegramClient.isAvailable else {
+            showSetup()
+            return
+        }
+
+        log("🔍 Checking if TDLib session is still valid...")
+        telegramClient = TelegramClient(apiId: config.apiId, apiHash: config.apiHash)
+        telegramClient?.onAuthStateChanged = { [weak self] state in
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+                if state == .ready {
+                    log("✅ TDLib session recovered — already authenticated")
+                    self.config.userLoggedIn = true
+                    self.config.save()
+                    // Wire up normal auth handler
+                    self.telegramClient?.onAuthStateChanged = { [weak self] s in
+                        DispatchQueue.main.async {
+                            if s == .ready {
+                                self?.config.userLoggedIn = true
+                                self?.config.save()
+                                self?.buildMenu()
+                            }
+                        }
+                    }
+                    if !self.config.chatId.isEmpty {
+                        self.tryStartListening()
+                    } else {
+                        self.showSetup()
+                    }
+                } else if state == .waitingForPhone {
+                    log("📱 TDLib needs authentication — showing setup")
+                    self.showSetup()
+                }
+            }
+        }
+        telegramClient?.onError = { msg in
+            log("❌ TDLib error: \(msg)")
+        }
+        telegramClient?.start()
+    }
 
     func startTelegramClient() {
         guard config.apiId > 0, !config.apiHash.isEmpty else {
