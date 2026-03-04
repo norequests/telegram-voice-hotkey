@@ -1,0 +1,53 @@
+name: Build macOS App
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-14  # Apple Silicon runner with Xcode
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build release binary
+        run: swift build -c release
+
+      - name: Create app bundle
+        run: |
+          APP="TelegramVoiceHotkey.app"
+          mkdir -p "$APP/Contents/MacOS"
+          mkdir -p "$APP/Contents/Resources"
+          cp .build/release/TelegramVoiceHotkey "$APP/Contents/MacOS/"
+          cat > "$APP/Contents/Info.plist" << 'PLIST'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>CFBundleExecutable</key>
+            <string>TelegramVoiceHotkey</string>
+            <key>CFBundleIdentifier</key>
+            <string>com.funktools.telegram-voice-hotkey</string>
+            <key>CFBundleName</key>
+            <string>Telegram Voice Hotkey</string>
+            <key>CFBundleVersion</key>
+            <string>1.0.0</string>
+            <key>CFBundleShortVersionString</key>
+            <string>1.0.0</string>
+            <key>LSUIElement</key>
+            <true/>
+            <key>NSMicrophoneUsageDescription</key>
+            <string>Records audio to send as voice messages to Telegram.</string>
+          </dict>
+          </plist>
+          PLIST
+
+      - name: Zip app
+        run: zip -r TelegramVoiceHotkey-macOS.zip TelegramVoiceHotkey.app
+
+      - name: Upload Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: TelegramVoiceHotkey-macOS.zip
