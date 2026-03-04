@@ -185,13 +185,35 @@ class TelegramClient {
             guard let data = json.data(using: .utf8),
                   let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { continue }
 
-            // TDLib includes client_id in responses
-            let clientId = dict["client_id"] as? Int32 ?? (dict["@client_id"] as? Int32 ?? -1)
+            let type = dict["@type"] as? String ?? "?"
+            // Log all TDLib responses for debugging
+            if type != "updateOption" {
+                log("📥 TDLib response: \(json.prefix(500))")
+            }
+
+            // TDLib includes client_id in responses — try both key formats
+            let clientId: Int32
+            if let cid = dict["client_id"] as? Int32 {
+                clientId = cid
+            } else if let cid = dict["@client_id"] as? Int32 {
+                clientId = cid
+            } else if let cid = dict["client_id"] as? Int {
+                clientId = Int32(cid)
+            } else if let cid = dict["@client_id"] as? Int {
+                clientId = Int32(cid)
+            } else {
+                log("⚠️ TDLib response missing client_id: \(type)")
+                // Try dispatching to first registered client
+                if let first = clients.values.first {
+                    first.handleUpdate(type: type, data: dict)
+                }
+                continue
+            }
 
             if let client = clients[clientId] {
-                if let type = dict["@type"] as? String {
-                    client.handleUpdate(type: type, data: dict)
-                }
+                client.handleUpdate(type: type, data: dict)
+            } else {
+                log("⚠️ TDLib response for unknown client \(clientId): \(type)")
             }
         }
     }
@@ -202,6 +224,10 @@ class TelegramClient {
         guard let sendFn = _td_send else { return }
         guard let data = try? JSONSerialization.data(withJSONObject: dict),
               let json = String(data: data, encoding: .utf8) else { return }
+        let type = dict["@type"] as? String ?? "?"
+        if type == "setTdlibParameters" {
+            log("📤 Sending to TDLib (client \(clientId)): \(json)")
+        }
         json.withCString { sendFn(clientId, $0) }
     }
 
