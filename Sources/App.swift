@@ -54,6 +54,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
 
         config = Config.load()
+        log("📋 Config loaded — sendMode=\(config.sendMode.rawValue) botToken=\(config.botToken.prefix(10))... chatId=\(config.chatId) isConfigured=\(config.isConfigured)")
         if config.isConfigured {
             if config.sendMode == .userAPI {
                 startTelegramClient()
@@ -190,7 +191,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             self.tryStartListening()
             self.updateLaunchAtLogin(newConfig.launchAtLogin)
             NSApp.setActivationPolicy(.accessory)
-            log("🎤 Config saved — \(newConfig.hotkeyDisplay)")
+            log("🎤 Config saved — \(newConfig.hotkeyDisplay) sendMode=\(newConfig.sendMode.rawValue) botToken=\(newConfig.botToken.prefix(10))... chatId=\(newConfig.chatId) isConfigured=\(newConfig.isConfigured)")
         }
         setupWindow?.showWindow(nil)
         setupWindow?.window?.makeKeyAndOrderFront(nil)
