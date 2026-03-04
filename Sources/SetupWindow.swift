@@ -7,10 +7,11 @@ class SetupWindowController: NSWindowController, NSWindowDelegate {
     private let chatIdField = NSTextField()
     private let hotkeyField = HotkeyRecorderView(frame: .zero)
     private let modePopup = NSPopUpButton()
+    private let launchAtLoginCheck = NSButton(checkboxWithTitle: "Launch at login", target: nil, action: nil)
 
     convenience init(existing: Config, onComplete: @escaping (Config) -> Void) {
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 420, height: 280),
+            contentRect: NSRect(x: 0, y: 0, width: 420, height: 310),
             styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false
@@ -78,10 +79,15 @@ class SetupWindowController: NSWindowController, NSWindowDelegate {
         modePopup.selectItem(at: existing.recordingMode == .pressToToggle ? 1 : 0)
         view.addSubview(modePopup)
 
+        // Launch at login
+        launchAtLoginCheck.frame = NSRect(x: 120, y: 58, width: 280, height: 20)
+        launchAtLoginCheck.state = existing.launchAtLogin ? .on : .off
+        view.addSubview(launchAtLoginCheck)
+
         // Help text
         let helpLabel = makeLabel("Click the hotkey button, then press your desired shortcut.", bold: false, size: 11)
         helpLabel.textColor = .secondaryLabelColor
-        helpLabel.frame = NSRect(x: 20, y: 60, width: 380, height: 18)
+        helpLabel.frame = NSRect(x: 20, y: 35, width: 380, height: 18)
         view.addSubview(helpLabel)
 
         // Save button
@@ -115,6 +121,7 @@ class SetupWindowController: NSWindowController, NSWindowDelegate {
         }
 
         let mode: RecordingMode = modePopup.indexOfSelectedItem == 1 ? .pressToToggle : .holdToRecord
+        let launchAtLogin = launchAtLoginCheck.state == .on
 
         let config = Config(
             botToken: token,
@@ -122,7 +129,8 @@ class SetupWindowController: NSWindowController, NSWindowDelegate {
             hotkeyKeyCode: recorded.keyCode,
             hotkeyModifiers: recorded.modifiers,
             hotkeyDisplay: recorded.displayString,
-            recordingMode: mode
+            recordingMode: mode,
+            launchAtLogin: launchAtLogin
         )
         config.save()
         onComplete?(config)

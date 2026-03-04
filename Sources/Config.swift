@@ -12,6 +12,7 @@ struct Config: Codable {
     var hotkeyModifiers: UInt
     var hotkeyDisplay: String
     var recordingMode: RecordingMode
+    var launchAtLogin: Bool
 
     static let configURL: URL = {
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
@@ -26,7 +27,8 @@ struct Config: Codable {
         hotkeyKeyCode: 0x60, // F5
         hotkeyModifiers: 0,
         hotkeyDisplay: "F5",
-        recordingMode: .holdToRecord
+        recordingMode: .holdToRecord,
+        launchAtLogin: false
     )
 
     static func load() -> Config {

@@ -1,6 +1,7 @@
 import Cocoa
 import AVFoundation
 import Carbon.HIToolbox
+import ServiceManagement
 
 class AppDelegate: NSObject, NSApplicationDelegate {
     var statusItem: NSStatusItem!
@@ -76,11 +77,28 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             self?.config = newConfig
             self?.buildMenu()
             self?.startListening()
+            self?.updateLaunchAtLogin(newConfig.launchAtLogin)
             NSApp.setActivationPolicy(.accessory)
             print("🎤 Config saved — hold \(newConfig.hotkeyDisplay) to record")
         }
         setupWindow?.showWindow(nil)
         setupWindow?.window?.makeKeyAndOrderFront(nil)
+    }
+
+    func updateLaunchAtLogin(_ enabled: Bool) {
+        if #available(macOS 13.0, *) {
+            do {
+                if enabled {
+                    try SMAppService.mainApp.register()
+                    print("✅ Launch at login enabled")
+                } else {
+                    try SMAppService.mainApp.unregister()
+                    print("✅ Launch at login disabled")
+                }
+            } catch {
+                print("⚠️ Launch at login failed: \(error)")
+            }
+        }
     }
 
     func startListening() {
