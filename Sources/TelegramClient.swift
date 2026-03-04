@@ -73,11 +73,34 @@ class TelegramClient {
         return tdlibHandle != nil && _td_create_client_id != nil
     }
 
+    /// Set up TDLib logging ONCE before any client is created
+    private static var loggingConfigured = false
+    private static func configureLogging() {
+        guard !loggingConfigured, let execFn = _td_execute else { return }
+        loggingConfigured = true
+
+        // Write TDLib internal logs to file for debugging
+        let logDir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+            .appendingPathComponent("TelegramVoiceHotkey")
+        try? FileManager.default.createDirectory(at: logDir, withIntermediateDirectories: true)
+        let tdLogPath = logDir.appendingPathComponent("tdlib.log").path
+
+        let logFileReq = "{\"@type\":\"setLogStream\",\"log_stream\":{\"@type\":\"logStreamFile\",\"path\":\"\(tdLogPath)\",\"max_file_size\":10485760,\"redirect_stderr\":false}}"
+        logFileReq.withCString { _ = execFn($0) }
+
+        let verbReq = "{\"@type\":\"setLogVerbosityLevel\",\"new_verbosity_level\":5}"
+        verbReq.withCString { _ = execFn($0) }
+
+        log("📋 TDLib logs → \(tdLogPath)")
+    }
+
     init(apiId: Int, apiHash: String) {
         self.apiId = apiId
         self.apiHash = apiHash
+        TelegramClient.configureLogging()
         if let create = _td_create_client_id {
             self.clientId = create()
+            log("📋 TDLib client created (id=\(self.clientId))")
         }
     }
 
@@ -89,12 +112,6 @@ class TelegramClient {
         guard apiId > 0, !apiHash.isEmpty else {
             log("❌ TDLib: invalid API credentials (apiId=\(apiId))")
             return
-        }
-
-        // Set log verbosity to minimum to prevent TDLib internal crashes on logging
-        if let execFn = _td_execute {
-            let logReq = "{\"@type\":\"setLogVerbosityLevel\",\"new_verbosity_level\":1}"
-            logReq.withCString { _ = execFn($0) }
         }
 
         running = true
