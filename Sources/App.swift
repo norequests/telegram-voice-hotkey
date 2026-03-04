@@ -159,7 +159,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
 
-        setupWindow = SetupWindowController(existing: config) { [weak self] newConfig in
+        setupWindow = SetupWindowController(existing: config, existingClient: telegramClient) { [weak self] newConfig in
             guard let self = self else { return }
             self.config = newConfig
 

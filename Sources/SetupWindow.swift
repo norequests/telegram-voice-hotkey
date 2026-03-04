@@ -21,7 +21,7 @@ class SetupWindowController: NSWindowController, NSWindowDelegate {
     private var contentView: NSView!
     private var existingConfig: Config = .default
 
-    convenience init(existing: Config, onComplete: @escaping (Config) -> Void) {
+    convenience init(existing: Config, existingClient: TelegramClient? = nil, onComplete: @escaping (Config) -> Void) {
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 520, height: 400),
             styleMask: [.titled, .closable],
@@ -34,6 +34,7 @@ class SetupWindowController: NSWindowController, NSWindowDelegate {
         self.init(window: window)
         self.onComplete = onComplete
         self.existingConfig = existing
+        self.telegramClient = existingClient
         window.delegate = self
 
         // Edit menu for paste support

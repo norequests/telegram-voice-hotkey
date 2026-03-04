@@ -52,7 +52,9 @@ private let _td_execute: TdExecute? = {
 class TelegramClient {
     private var clientId: Int32 = -1
     private var running = false
-    private let queue = DispatchQueue(label: "tdlib.receive", qos: .background)
+    /// Shared serial queue — TDLib requires td_receive be called from one thread only
+    private static let sharedQueue = DispatchQueue(label: "tdlib.receive", qos: .background)
+    private static var receiveLoopRunning = false
 
     enum AuthState {
         case waitingForPhone
@@ -115,12 +117,15 @@ class TelegramClient {
         }
 
         running = true
-        log("🔑 TDLib starting — apiId=\(apiId), dataDir=\(tdlibDataDir())")
+        registerClient()
+        log("🔑 TDLib starting — clientId=\(clientId), apiId=\(apiId), dataDir=\(tdlibDataDir())")
 
-        // Don't send setTdlibParameters eagerly — let the receive loop handle
-        // authorizationStateWaitTdlibParameters first
-        queue.async { [weak self] in
-            self?.receiveLoop()
+        // Start shared receive loop if not already running
+        if !TelegramClient.receiveLoopRunning {
+            TelegramClient.receiveLoopRunning = true
+            TelegramClient.sharedQueue.async {
+                TelegramClient.globalReceiveLoop()
+            }
         }
     }
 
@@ -163,6 +168,34 @@ class TelegramClient {
 
     var isLoggedIn: Bool { authState == .ready }
 
+    // MARK: - Client Registry (for shared receive loop)
+
+    private static var clients: [Int32: TelegramClient] = [:]
+
+    private func registerClient() {
+        TelegramClient.clients[clientId] = self
+    }
+
+    private static func globalReceiveLoop() {
+        guard let receiveFn = _td_receive else { return }
+        while true {
+            guard let resultPtr = receiveFn(1.0) else { continue }
+            let json = String(cString: resultPtr)
+
+            guard let data = json.data(using: .utf8),
+                  let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { continue }
+
+            // TDLib includes client_id in responses
+            let clientId = dict["client_id"] as? Int32 ?? (dict["@client_id"] as? Int32 ?? -1)
+
+            if let client = clients[clientId] {
+                if let type = dict["@type"] as? String {
+                    client.handleUpdate(type: type, data: dict)
+                }
+            }
+        }
+    }
+
     // MARK: - Internal
 
     private func send(_ dict: [String: Any]) {
@@ -170,20 +203,6 @@ class TelegramClient {
         guard let data = try? JSONSerialization.data(withJSONObject: dict),
               let json = String(data: data, encoding: .utf8) else { return }
         json.withCString { sendFn(clientId, $0) }
-    }
-
-    private func receiveLoop() {
-        guard let receiveFn = _td_receive else { return }
-        while running {
-            guard let resultPtr = receiveFn(1.0) else { continue }
-            let json = String(cString: resultPtr)
-
-            guard let data = json.data(using: .utf8),
-                  let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  let type = dict["@type"] as? String else { continue }
-
-            handleUpdate(type: type, data: dict)
-        }
     }
 
     private func handleUpdate(type: String, data: [String: Any]) {
