@@ -1,4 +1,4 @@
-# Voice to YOLO
+# Telegram Voice Hotkey
 
 A macOS menu bar app that lets you send Telegram voice notes with a global keyboard shortcut.
 
