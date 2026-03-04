@@ -147,24 +147,51 @@ class TelegramClient {
     }
 
     func sendVoiceNote(chatId: Int64, filePath: String, duration: Int, completion: @escaping (Bool) -> Void) {
-        let requestId = UUID().uuidString
-        send([
-            "@type": "sendMessage",
-            "@extra": requestId,
-            "chat_id": chatId,
-            "input_message_content": [
-                "@type": "inputMessageVoiceNote",
-                "voice_note": [
-                    "@type": "inputFileLocal",
-                    "path": filePath,
+        // TDLib needs us to open/create the private chat first
+        let chatExtra = "create_chat_\(chatId)"
+        let sendExtra = UUID().uuidString
+
+        // Register a one-shot handler for the chat creation response
+        pendingCallbacks[chatExtra] = { [weak self] response in
+            guard let self = self else { return }
+            let type = response["@type"] as? String ?? ""
+
+            // Get the actual chat_id (might differ from user_id)
+            var tdChatId = chatId
+            if type == "chat", let cid = response["id"] as? Int64 {
+                tdChatId = cid
+            }
+
+            self.send([
+                "@type": "sendMessage",
+                "@extra": sendExtra,
+                "chat_id": tdChatId,
+                "input_message_content": [
+                    "@type": "inputMessageVoiceNote",
+                    "voice_note": [
+                        "@type": "inputFileLocal",
+                        "path": filePath,
+                    ],
+                    "duration": duration,
                 ],
-                "duration": duration,
-            ],
-        ])
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-            completion(true)
+            ])
         }
+
+        pendingCallbacks[sendExtra] = { response in
+            let type = response["@type"] as? String ?? ""
+            let ok = type == "message"
+            DispatchQueue.main.async { completion(ok) }
+        }
+
+        send([
+            "@type": "createPrivateChat",
+            "@extra": chatExtra,
+            "user_id": chatId,
+            "force": false,
+        ])
     }
+
+    private var pendingCallbacks: [String: ([String: Any]) -> Void] = [:]
 
     var isLoggedIn: Bool { authState == .ready }
 
@@ -211,7 +238,13 @@ class TelegramClient {
             }
 
             if let client = clients[clientId] {
-                client.handleUpdate(type: type, data: dict)
+                // Check for @extra callback first
+                if let extra = dict["@extra"] as? String,
+                   let callback = client.pendingCallbacks.removeValue(forKey: extra) {
+                    callback(dict)
+                } else if let type = dict["@type"] as? String {
+                    client.handleUpdate(type: type, data: dict)
+                }
             } else {
                 log("⚠️ TDLib response for unknown client \(clientId): \(type)")
             }
