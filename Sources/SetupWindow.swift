@@ -11,7 +11,7 @@ class SetupWindowController: NSWindowController, NSWindowDelegate {
 
     convenience init(existing: Config, onComplete: @escaping (Config) -> Void) {
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 420, height: 300),
+            contentRect: NSRect(x: 0, y: 0, width: 520, height: 300),
             styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false
@@ -33,7 +33,7 @@ class SetupWindowController: NSWindowController, NSWindowDelegate {
         tokenLabel.frame = NSRect(x: 20, y: y, width: 90, height: 20)
         view.addSubview(tokenLabel)
 
-        botTokenField.frame = NSRect(x: 115, y: y - 2, width: 285, height: 24)
+        botTokenField.frame = NSRect(x: 115, y: y - 2, width: 385, height: 24)
         botTokenField.placeholderString = "123456:ABC-DEF..."
         botTokenField.stringValue = existing.botToken
         botTokenField.font = .monospacedSystemFont(ofSize: 12, weight: .regular)
@@ -47,7 +47,7 @@ class SetupWindowController: NSWindowController, NSWindowDelegate {
         chatLabel.frame = NSRect(x: 20, y: y, width: 90, height: 20)
         view.addSubview(chatLabel)
 
-        chatIdField.frame = NSRect(x: 115, y: y - 2, width: 285, height: 24)
+        chatIdField.frame = NSRect(x: 115, y: y - 2, width: 385, height: 24)
         chatIdField.placeholderString = "Your Telegram chat ID"
         chatIdField.stringValue = existing.chatId
         chatIdField.font = .monospacedSystemFont(ofSize: 12, weight: .regular)
@@ -78,7 +78,7 @@ class SetupWindowController: NSWindowController, NSWindowDelegate {
         modeLabel.frame = NSRect(x: 20, y: y, width: 90, height: 20)
         view.addSubview(modeLabel)
 
-        modePopup.frame = NSRect(x: 115, y: y - 2, width: 285, height: 24)
+        modePopup.frame = NSRect(x: 115, y: y - 2, width: 385, height: 24)
         modePopup.addItems(withTitles: [
             "Hold to record (release sends)",
             "Press to start, any key stops"
@@ -88,7 +88,7 @@ class SetupWindowController: NSWindowController, NSWindowDelegate {
         y -= 35
 
         // Launch at login
-        launchAtLoginCheck.frame = NSRect(x: 115, y: y, width: 280, height: 20)
+        launchAtLoginCheck.frame = NSRect(x: 115, y: y, width: 380, height: 20)
         launchAtLoginCheck.state = existing.launchAtLogin ? .on : .off
         view.addSubview(launchAtLoginCheck)
         y -= 15
@@ -96,12 +96,12 @@ class SetupWindowController: NSWindowController, NSWindowDelegate {
         // Help text
         let helpLabel = makeLabel("Click the hotkey button, then press your desired shortcut.", bold: false, size: 11)
         helpLabel.textColor = .secondaryLabelColor
-        helpLabel.frame = NSRect(x: 20, y: y, width: 380, height: 18)
+        helpLabel.frame = NSRect(x: 20, y: y, width: 480, height: 18)
         view.addSubview(helpLabel)
 
         // Save button — anchored at bottom with breathing room
         let saveButton = NSButton(title: "Save & Start", target: self, action: #selector(saveConfig))
-        saveButton.frame = NSRect(x: 280, y: 15, width: 120, height: 36)
+        saveButton.frame = NSRect(x: 380, y: 15, width: 120, height: 36)
         saveButton.bezelStyle = .rounded
         saveButton.keyEquivalent = "\r"
         view.addSubview(saveButton)
