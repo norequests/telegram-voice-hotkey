@@ -145,6 +145,31 @@ class TelegramClient {
         }
 
         log("🔑 TDLib starting — clientId=\(clientId), apiId=\(apiId)")
+
+        // Proactively send setTdlibParameters in case we missed the initial
+        // authorizationStateWaitTdlibParameters update (race with receive loop)
+        DispatchQueue.global().asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            guard let self = self else { return }
+            if self.authState == .initializing {
+                log("⏳ TDLib still initializing after 0.5s — sending parameters proactively")
+                self.tdSend([
+                    "@type": "setTdlibParameters",
+                    "database_directory": self.tdlibDataDir(),
+                    "files_directory": self.tdlibDataDir() + "/files",
+                    "database_encryption_key": "",
+                    "use_file_database": true,
+                    "use_chat_info_database": true,
+                    "use_message_database": true,
+                    "use_secret_chats": false,
+                    "api_id": self.apiId,
+                    "api_hash": self.apiHash,
+                    "system_language_code": "en",
+                    "device_model": "macOS",
+                    "system_version": "",
+                    "application_version": "1.2.0",
+                ])
+            }
+        }
     }
 
     /// Log out (keeps the client alive for re-auth — no close/destroy needed)
@@ -325,6 +350,24 @@ class TelegramClient {
                 let type = jsonString(dict["@type"]) ?? "?"
                 if type != "updateOption" { // updateOption is noisy
                     log("⚠️ TDLib update for unknown client \(cid): \(type)")
+                }
+                // If this is an auth state update for a client we missed registering,
+                // try again after a short delay
+                if type == "updateAuthorizationState" {
+                    log("🔄 Retrying auth update routing in 0.2s...")
+                    let savedDict = dict
+                    let savedCid = cid
+                    DispatchQueue.global().asyncAfter(deadline: .now() + 0.2) {
+                        registryLock.lock()
+                        let retryClient = savedCid >= 0 ? clients[savedCid] : clients.values.first
+                        registryLock.unlock()
+                        if let retryClient = retryClient {
+                            log("✅ Retry: routed auth update to client \(savedCid)")
+                            retryClient.handleUpdate(savedDict)
+                        } else {
+                            log("❌ Retry: still no client for \(savedCid)")
+                        }
+                    }
                 }
                 continue
             }
