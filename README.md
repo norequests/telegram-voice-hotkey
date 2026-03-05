@@ -4,15 +4,18 @@ A macOS menu bar app for sending voice notes and screenshots to your AI agent vi
 
 **Hold a hotkey → record → release → voice note sent as you** via Telegram's User API (TDLib).
 
-**Hold screenshot hotkey → captures screen + records voice → transcribes locally → sends screenshot with your words as the caption** — one atomic message, full context for your AI.
+**Hold screenshot hotkey → captures screen + records voice → transcribes → sends screenshot with your words as the caption** — one atomic message, full context for your AI.
 
 > **Prerequisites:** You need an [OpenClaw](https://github.com/openclaw/openclaw) agent connected to Telegram that can receive and transcribe voice notes. See [Setup step 3](#3-set-up-your-ai-to-receive-voice-notes) for details.
 
 ## Features
 
-- 🎤 **Global voice hotkey** — works from any app, any time
-- 📸 **Screenshot + voice combo** — capture screen + speak, sent as one message
+- 🎤 **Global voice hotkey** — works from any app, any time (default: `⌃⌥N`)
+- 📸 **Screenshot + voice combo** — capture screen + speak, sent as one message (default: `⌃⌥M`)
+- 💬 **Send voice as text** — transcribe and send as a text message instead of audio
 - 🧠 **Local transcription** — whisper.cpp transcribes your voice on-device (no cloud needed)
+- 🌐 **Cloud transcription** — Gemini or any OpenAI-compatible API (Groq, OpenAI, self-hosted)
+- 🔌 **Custom endpoints** — bring your own transcription API (OpenAI-compatible)
 - 👤 **Sends as you** — Telegram User API (TDLib), messages appear from your account
 - 🎵 **OGG/Opus format** — proper Telegram voice note with waveform player
 - 📦 **Self-contained** — TDLib, ffmpeg bundled in the `.app`
@@ -43,7 +46,7 @@ cd voice-to-slop
 # Build TDLib (first time only, ~5 minutes)
 ./scripts/setup-tdlib.sh
 
-# Download whisper model for local transcription
+# Download whisper model for local transcription (optional — not needed for cloud transcription)
 mkdir -p ~/Library/Application\ Support/TelegramVoiceHotkey/models/
 curl -L "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.en.bin" \
   -o ~/Library/Application\ Support/TelegramVoiceHotkey/models/ggml-small.en.bin
@@ -72,11 +75,23 @@ On first launch, a setup window appears.
 | **API ID / Hash** | From step 1 |
 | **Phone** | Your Telegram phone number → click **Send Code** → enter code |
 | **Chat ID** | Numeric ID of the chat to send to (see [Finding a Chat ID](#finding-a-chat-id)) |
-| **Hotkey** | Global shortcut for voice recording |
-| **Screenshot** | Global shortcut for screenshot + voice combo |
+| **Hotkey** | Global shortcut for voice recording (default: `⌃⌥N`) |
+| **Screenshot** | Global shortcut for screenshot + voice combo (default: `⌃⌥M`) |
 | **Mode** | Hold-to-record (release sends) or press-to-toggle |
+| **Transcription** | Local (whisper.cpp), Gemini, or Custom endpoint |
+| **Send voice as text** | Transcribe and send text instead of audio (requires Gemini or Custom) |
 
-### 3. Set up your AI to receive voice notes
+### 3. Transcription options
+
+| Mode | Description |
+|------|-------------|
+| **Local** | whisper.cpp — offline, ~10s, needs model download (~460MB) |
+| **Gemini** | Google Gemini API — fast cloud transcription, needs API key |
+| **Custom** | Any OpenAI-compatible `/v1/audio/transcriptions` endpoint |
+
+**Custom endpoint** works with: OpenAI Whisper API, Groq, local whisper-server, or any service that accepts the OpenAI audio transcription format. Configure the endpoint URL, API key, and model name in settings.
+
+### 4. Set up your AI to receive voice notes
 
 For the full loop — speak → AI responds:
 
@@ -85,7 +100,7 @@ For the full loop — speak → AI responds:
 
 The result: hold hotkey → speak → AI transcribes → responds in chat.
 
-### 4. Permissions
+### 5. Permissions
 
 The app needs three macOS permissions (prompted automatically):
 
@@ -99,12 +114,24 @@ The killer feature. Hold the screenshot hotkey:
 
 1. 📸 Screen captured instantly
 2. 🎤 Voice recording starts
-3. Release → voice transcribed locally via [whisper.cpp](https://github.com/ggml-org/whisper.cpp)
+3. Release → voice transcribed (local or cloud)
 4. 📤 Screenshot sent with transcription as caption — **one message**
 
 Your AI gets the full context (visual + verbal) in a single message. No race condition, no partial responses.
 
-### Whisper Model
+## Send Voice as Text
+
+When **"Send voice as transcribed text"** is enabled (and using Gemini or Custom transcription):
+
+1. 🎤 Record your voice
+2. 📝 Voice is transcribed via your chosen cloud provider
+3. 💬 Transcript sent as a regular text message (not a voice note)
+
+If transcription fails, it falls back to sending as a voice note automatically.
+
+This is useful when you want your AI to receive clean text input without needing server-side audio processing.
+
+### Whisper Model (local mode)
 
 Local transcription uses whisper.cpp. Recommended model: **small.en** (~460MB, good accuracy):
 
@@ -116,12 +143,14 @@ curl -L "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.en
 
 `base.en` (~140MB) also works but struggles with background noise. The app searches for `small.en` first, falls back to `base.en`.
 
+You can also download the model from within the app when Local mode is selected.
+
 ## Finding a Chat ID
 
 The Chat ID is the numeric ID of the target Telegram chat.
 
-- **[@userinfobot](https://t.me/userinfobot)** — forward a message from the target chat
-- **For a bot** — message it, then check `https://api.telegram.org/bot<TOKEN>/getUpdates`
+- **[@userinfobot](https://t.me/userinfobot)** — forward a message from the target chat, or message it directly for your own ID
+- **For a bot** — the bot's user ID is the number before the `:` in its token (e.g. `8293553857:AAE...` → `8293553857`)
 
 ## Files
 
@@ -146,6 +175,8 @@ Menu bar icon → **View Log...** to check status.
 | Bad transcription | Use `small.en` model; speak clearly for 2+ seconds |
 | Corrupt session | Delete `~/Library/Application Support/TelegramVoiceHotkey/tdlib/` and re-login |
 | Screenshot not sending | Grant Screen Recording permission; restart app |
+| TDLib stuck on startup | Delete `~/Library/Application Support/TelegramVoiceHotkey/` and reconfigure |
+| Transcription hangs | Check API key; try switching transcription mode |
 
 ## Architecture
 
