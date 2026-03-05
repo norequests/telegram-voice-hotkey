@@ -12,7 +12,7 @@ class ScreenCapture {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
         // -x: no sound, -C: capture cursor, captures full screen
-        process.arguments = ["-x", path]
+        process.arguments = ["-x", "-C", path]
 
         do {
             try process.run()
