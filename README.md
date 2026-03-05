@@ -6,7 +6,7 @@ A macOS menu bar app for sending voice notes and screenshots to your AI agent vi
 
 **Hold screenshot hotkey → captures screen + records voice → transcribes → sends screenshot with your words as the caption** — one atomic message, full context for your AI.
 
-> **Prerequisites:** You need an [OpenClaw](https://github.com/openclaw/openclaw) agent connected to Telegram that can receive and transcribe voice notes. See [Setup step 3](#3-set-up-your-ai-to-receive-voice-notes) for details.
+> **Prerequisites:** You need an [OpenClaw](https://github.com/openclaw/openclaw) agent connected to Telegram.
 
 ## Features
 
