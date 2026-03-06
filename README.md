@@ -150,7 +150,7 @@ You can also download the model from within the app when Local mode is selected.
 The Chat ID is the numeric ID of the target Telegram chat.
 
 - **[@userinfobot](https://t.me/userinfobot)** — forward a message from the target chat, or message it directly for your own ID
-- **For a bot** — the bot's user ID is the number before the `:` in its token (e.g. `8293553857:AAE...` → `8293553857`)
+- **For a bot** — the bot's user ID is the number before the `:` in its token (e.g. `1234567890:AAE...` → `1234567890`)
 
 ## Files
 
