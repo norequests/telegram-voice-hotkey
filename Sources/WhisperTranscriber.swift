@@ -3,6 +3,22 @@ import Foundation
 /// Local audio transcription via whisper-cpp (dynamically loaded).
 /// Bundles libwhisper.dylib + model in .app/Contents/Resources/
 class WhisperTranscriber {
+    private static let preferredModelNames = ["ggml-small.en.bin", "ggml-base.en.bin"]
+
+    private static var modelSearchDirs: [String] {
+        [
+            Bundle.main.resourceURL?.appendingPathComponent("models").path,
+            "\(NSHomeDirectory())/Library/Application Support/TelegramVoiceHotkey/models",
+            "/opt/homebrew/share/whisper-cpp/models",
+        ].compactMap { $0 }
+    }
+
+    static var hasLocalModel: Bool {
+        let modelCandidates = preferredModelNames.flatMap { name in
+            modelSearchDirs.map { dir in "\(dir)/\(name)" }
+        }
+        return modelCandidates.contains { FileManager.default.fileExists(atPath: $0) }
+    }
 
     // MARK: - Dynamic loading
 
@@ -45,15 +61,8 @@ class WhisperTranscriber {
 
         // Find model: bundled first, then common locations
         // Prefer larger models for better accuracy (especially in noisy environments)
-        let modelNames = ["ggml-small.en.bin", "ggml-base.en.bin"]
-        let searchDirs = [
-            Bundle.main.resourceURL?.appendingPathComponent("models").path,
-            "\(NSHomeDirectory())/Library/Application Support/TelegramVoiceHotkey/models",
-            "/opt/homebrew/share/whisper-cpp/models",
-        ].compactMap { $0 }
-
-        let modelCandidates = modelNames.flatMap { name in
-            searchDirs.map { dir in "\(dir)/\(name)" }
+        let modelCandidates = preferredModelNames.flatMap { name in
+            modelSearchDirs.map { dir in "\(dir)/\(name)" }
         }
         let modelPath = modelCandidates.first { FileManager.default.fileExists(atPath: $0) }
 

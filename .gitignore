@@ -4,3 +4,4 @@ tdlib-local/
 .build-tdlib/
 TelegramVoiceHotkey.app/
 *.zip
+TASK.md
