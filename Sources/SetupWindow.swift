@@ -237,7 +237,7 @@ class SetupWindowController: NSWindowController, NSWindowDelegate {
         contentView.addSubview(dictationHotkeyField)
 
         let dictationHelp = makeLabel("Record voice and copy transcription to clipboard")
-        dictationHelp.frame = NSRect(x: 320, y: y - 2, width: 200, height: 16)
+        dictationHelp.frame = NSRect(x: 320, y: y - 2, width: 250, height: 16)
         dictationHelp.font = .systemFont(ofSize: 10)
         dictationHelp.textColor = .secondaryLabelColor
         contentView.addSubview(dictationHelp)
@@ -707,9 +707,9 @@ class SetupWindowController: NSWindowController, NSWindowDelegate {
             screenshotHotkeyKeyCode: screenshotHotkeyField.recordedHotkey?.keyCode ?? 0,
             screenshotHotkeyModifiers: screenshotHotkeyField.recordedHotkey?.modifiers ?? 0,
             screenshotHotkeyDisplay: screenshotHotkeyField.recordedHotkey?.displayString ?? "",
-            dictationKeyCode: dictationHotkeyField.recordedHotkey?.keyCode ?? 0x0B,
-            dictationModifiers: dictationHotkeyField.recordedHotkey?.modifiers ?? 786432,
-            dictationDisplay: dictationHotkeyField.recordedHotkey?.displayString ?? "⌃⌥B",
+            dictationKeyCode: dictationHotkeyField.recordedHotkey?.keyCode ?? 0,
+            dictationModifiers: dictationHotkeyField.recordedHotkey?.modifiers ?? 0,
+            dictationDisplay: dictationHotkeyField.recordedHotkey?.displayString ?? "",
             transcriptionMode: {
                 switch transcriptionPopup.indexOfSelectedItem {
                 case 1:  return "gemini"

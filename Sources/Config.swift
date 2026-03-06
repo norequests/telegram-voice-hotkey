@@ -38,8 +38,8 @@ struct Config: Codable {
          apiId: Int, apiHash: String, userLoggedIn: Bool,
          screenshotHotkeyKeyCode: UInt16 = 0, screenshotHotkeyModifiers: UInt = 0,
          screenshotHotkeyDisplay: String = "",
-         dictationKeyCode: UInt16 = 0x0B, dictationModifiers: UInt = 786432,
-         dictationDisplay: String = "⌃⌥B",
+         dictationKeyCode: UInt16 = 0, dictationModifiers: UInt = 0,
+         dictationDisplay: String = "",
          transcriptionMode: String = "local", geminiApiKey: String = "",
          customEndpointUrl: String = "", customApiKey: String = "",
          customModelName: String = "", sendVoiceAsText: Bool = false) {
@@ -87,9 +87,9 @@ struct Config: Codable {
         screenshotHotkeyKeyCode = try c.decodeIfPresent(UInt16.self, forKey: .screenshotHotkeyKeyCode) ?? 0
         screenshotHotkeyModifiers = try c.decodeIfPresent(UInt.self, forKey: .screenshotHotkeyModifiers) ?? 0
         screenshotHotkeyDisplay = try c.decodeIfPresent(String.self, forKey: .screenshotHotkeyDisplay) ?? ""
-        dictationKeyCode = try c.decodeIfPresent(UInt16.self, forKey: .dictationKeyCode) ?? 0x0B
-        dictationModifiers = try c.decodeIfPresent(UInt.self, forKey: .dictationModifiers) ?? 786432
-        dictationDisplay = try c.decodeIfPresent(String.self, forKey: .dictationDisplay) ?? "⌃⌥B"
+        dictationKeyCode = try c.decodeIfPresent(UInt16.self, forKey: .dictationKeyCode) ?? 0
+        dictationModifiers = try c.decodeIfPresent(UInt.self, forKey: .dictationModifiers) ?? 0
+        dictationDisplay = try c.decodeIfPresent(String.self, forKey: .dictationDisplay) ?? ""
         transcriptionMode = try c.decodeIfPresent(String.self, forKey: .transcriptionMode) ?? "local"
         geminiApiKey = try c.decodeIfPresent(String.self, forKey: .geminiApiKey) ?? ""
         customEndpointUrl = try c.decodeIfPresent(String.self, forKey: .customEndpointUrl) ?? ""

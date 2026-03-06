@@ -465,6 +465,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             log("⚠️ startRecording skipped — isRecording=\(isRecording), configured=\(config.isConfigured)")
             return
         }
+        startAudioRecording()
+    }
+
+    private func startAudioRecording() {
+        guard !isRecording else {
+            return
+        }
         isRecording = true
         updateIcon(recording: true)
 
@@ -524,8 +531,37 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             log("⚠️ startDictationRecording skipped")
             return
         }
+        switch config.transcriptionMode {
+        case "gemini":
+            if config.geminiApiKey.isEmpty {
+                showLocalNotification(
+                    title: "Voice to Slop",
+                    subtitle: "Dictation unavailable",
+                    body: "Gemini API key missing. Add it in settings."
+                )
+                return
+            }
+        case "custom":
+            if config.customEndpointUrl.isEmpty {
+                showLocalNotification(
+                    title: "Voice to Slop",
+                    subtitle: "Dictation unavailable",
+                    body: "Custom endpoint URL missing. Add it in settings."
+                )
+                return
+            }
+        default:
+            guard WhisperTranscriber.hasLocalModel else {
+                showLocalNotification(
+                    title: "Voice to Slop",
+                    subtitle: "Dictation unavailable",
+                    body: "Local transcription model not found. Switch to Gemini or Custom mode in settings."
+                )
+                return
+            }
+        }
         isDictationMode = true
-        startRecording()
+        startAudioRecording()
         if !isRecording {
             isDictationMode = false
         }
@@ -581,39 +617,47 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     return
                 }
 
-                let pasteboard = NSPasteboard.general
-                pasteboard.clearContents()
-                let copied = pasteboard.setString(text, forType: .string)
-                if copied {
-                    self.showLocalNotification(
-                        title: "Voice to Slop",
-                        subtitle: "Copied to clipboard",
-                        body: String(text.prefix(50))
-                    )
-                    log("✅ Dictation copied to clipboard")
-                    completion(true)
-                } else {
-                    self.showLocalNotification(title: "Voice to Slop", subtitle: "Dictation failed", body: "Clipboard write failed")
-                    completion(false)
+                DispatchQueue.main.async {
+                    let pasteboard = NSPasteboard.general
+                    pasteboard.clearContents()
+                    let copied = pasteboard.setString(text, forType: .string)
+                    if copied {
+                        self.showLocalNotification(
+                            title: "Voice to Slop",
+                            subtitle: "Copied to clipboard",
+                            body: String(text.prefix(50))
+                        )
+                        log("✅ Dictation copied to clipboard")
+                        completion(true)
+                    } else {
+                        self.showLocalNotification(title: "Voice to Slop", subtitle: "Dictation failed", body: "Clipboard write failed")
+                        completion(false)
+                    }
                 }
             }
         }
     }
 
-    func requestNotificationPermissionIfNeeded() {
-        guard !notificationPermissionRequested else { return }
-        notificationPermissionRequested = true
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
-    }
-
     func showLocalNotification(title: String, subtitle: String, body: String) {
-        requestNotificationPermissionIfNeeded()
-        let content = UNMutableNotificationContent()
-        content.title = title
-        content.subtitle = subtitle
-        content.body = body
-        let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
-        UNUserNotificationCenter.current().add(request)
+        let postNotification = {
+            let content = UNMutableNotificationContent()
+            content.title = title
+            content.subtitle = subtitle
+            content.body = body
+            let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
+            UNUserNotificationCenter.current().add(request)
+        }
+
+        guard !notificationPermissionRequested else {
+            postNotification()
+            return
+        }
+        notificationPermissionRequested = true
+
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { granted, _ in
+            guard granted else { return }
+            postNotification()
+        }
     }
 
     func stopAndSendScreenshot() {
